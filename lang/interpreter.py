@@ -146,6 +146,9 @@ class Interpreter:
             r = self.evaluate(expr.right)
             op = expr.op
             if op == '+':
+                # allow concatenation between strings and other types
+                if isinstance(l, str) or isinstance(r, str):
+                    return str(l) + str(r)
                 return l + r
             if op == '-':
                 return l - r
