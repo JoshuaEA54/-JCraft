@@ -51,6 +51,12 @@ class ReturnStmt(ASTNode):
 
 
 @dataclass
+class IfStmt(ASTNode):
+    # branches: list of tuples (condition_expr or None for else, body statements list)
+    branches: List[tuple]
+
+
+@dataclass
 class ExprBin(ASTNode):
     op: str
     left: Any
@@ -246,6 +252,63 @@ class Parser:
             expr = self.parse_expression()
             self.expect("SEMI")
             return PrintStmt(expr)
+
+        # Control flow: observador / comparador / dispensador -> multi-branch if
+        if tok.type == "KEYWORD" and tok.value in ("observador", "comparador", "dispensador"):
+            branches: List[tuple] = []
+            # primera rama
+            kw = tok.value
+            self.advance()
+            cond = None
+            if kw in ("observador", "comparador"):
+                # expect '(' expr ')'
+                self.expect("LPAREN")
+                cond = self.parse_expression()
+                self.expect("RPAREN")
+            # expect ':' after header
+            self.expect("COLON")
+
+            # parse statements for this branch until next branch keyword or 'fin'
+            stmts: List[ASTNode] = []
+            while True:
+                ntok = self.current()
+                if not ntok:
+                    raise ParserError("Unterminated if-like block")
+                if ntok.type == 'KEYWORD' and ntok.value in ('comparador', 'dispensador', 'fin'):
+                    break
+                stmt = self.parse_statement()
+                if stmt:
+                    stmts.append(stmt)
+            branches.append((cond, stmts))
+
+            # subsequent branches
+            while self.current() and self.current().type == 'KEYWORD' and self.current().value in ('comparador', 'dispensador'):
+                kw = self.current().value
+                self.advance()
+                cond = None
+                if kw == 'comparador':
+                    self.expect('LPAREN')
+                    cond = self.parse_expression()
+                    self.expect('RPAREN')
+                # expect ':' after header
+                self.expect('COLON')
+                stmts = []
+                while True:
+                    ntok = self.current()
+                    if not ntok:
+                        raise ParserError("Unterminated if-like block")
+                    if ntok.type == 'KEYWORD' and ntok.value in ('comparador', 'dispensador', 'fin'):
+                        break
+                    stmt = self.parse_statement()
+                    if stmt:
+                        stmts.append(stmt)
+                branches.append((cond, stmts))
+
+            # expect 'fin'
+            if not (self.current() and self.current().type == 'KEYWORD' and self.current().value == 'fin'):
+                raise ParserError("Expected 'fin' to close observador/comparador/dispensador block")
+            self.advance()
+            return IfStmt(branches)
 
         # craftear <expr> ;
         if tok.type == "KEYWORD" and tok.value == "craftear":
