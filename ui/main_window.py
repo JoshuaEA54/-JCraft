@@ -2,7 +2,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QMenuBar, QStatusBar, QSplitter
+    QMainWindow, QWidget, QVBoxLayout, QMenuBar, QStatusBar, QSplitter, QInputDialog
 )
 from .style import STYLE_QSS
 from .background import Background
@@ -143,10 +143,44 @@ class MainWindow(QMainWindow):
     def _on_run(self):
         """Execute the source via the interpreter and show results."""
         self.output_panel.clear()
+        self.output_panel.append("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
+        
+        # Callback para cofre() que muestra primero el prompt en OUTPUT y luego el diálogo
+        def input_callback(prompt: str) -> str:
+            # Mostrar el prompt en la consola de salida
+            self.output_panel.append(prompt)
+            
+            # Crear diálogo con estilo para que todo sea visible (texto negro, botones negros)
+            dialog = QInputDialog(self)
+            dialog.setWindowTitle("Entrada - cofre()")
+            dialog.setLabelText(prompt)
+            dialog.setStyleSheet("""
+                QLabel { 
+                    color: black; 
+                }
+                QLineEdit { 
+                    color: black; 
+                    background-color: white; 
+                }
+                QPushButton { 
+                    color: black; 
+                    background-color: #e0e0e0;
+                    border: 1px solid #999;
+                    padding: 5px 15px;
+                }
+                QPushButton:hover {
+                    background-color: #d0d0d0;
+                }
+            """)
+            
+            if dialog.exec():
+                text = dialog.textValue()
+                return text
+            return ""  # si cancela, devuelve vacío
+        
         try:
-            results = run_source(src, input_callback=lambda prompt: "", debug=False)
-            self.output_panel.append("--- EJECUCIÓN ---")
+            results = run_source(src, input_callback=input_callback, debug=False)
             if results:
                 for r in results:
                     self.output_panel.append(str(r))
