@@ -133,7 +133,15 @@ class Interpreter:
                 raise InterpreterError(f"Variable {expr.name} not defined")
             return self.variables[expr.name]
         if isinstance(expr, Call):
-            return self.execute_statement(expr)
+            # Si es una llamada que retorna algo (como cofre o una función con return)
+            if expr.callee == 'cofre':
+                prompt = ''
+                if len(expr.args) == 1:
+                    prompt_val = self.evaluate(expr.args[0])
+                    prompt = str(prompt_val)
+                value = self.input_callback(prompt)
+                return value
+            return self.call_function(expr.callee, expr.args)
         if isinstance(expr, ExprUnary):
             val = self.evaluate(expr.operand)
             if expr.op == '-':
