@@ -1,8 +1,22 @@
 from typing import Any, Callable, Dict, List, Optional
-from .parser import Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt, Literal, VarRef, ExprBin, ExprUnary, IfStmt
+from .parser import (
+    Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt, 
+    Literal, VarRef, ExprBin, ExprUnary, IfStmt, WhileStmt, ForStmt, 
+    DoWhileStmt, SwitchStmt, BreakStmt, ContinueStmt
+)
 
 
 class InterpreterError(Exception):
+    pass
+
+
+class BreakException(Exception):
+    """Control flow exception for break statement"""
+    pass
+
+
+class ContinueException(Exception):
+    """Control flow exception for continue statement"""
     pass
 
 
@@ -116,6 +130,95 @@ class Interpreter:
                     rv = self.execute_block(body)
                     return rv
             return None
+
+        if isinstance(stmt, WhileStmt):
+            # spawner (cond): ... romper;
+            while True:
+                cond_val = self.evaluate(stmt.condition)
+                if not bool(cond_val):
+                    break
+                try:
+                    rv = self.execute_block(stmt.body)
+                    if rv is not None:
+                        return rv
+                except BreakException:
+                    break
+                except ContinueException:
+                    continue
+            return None
+
+        if isinstance(stmt, ForStmt):
+            # cultivar (init; cond; step): ... cosechar;
+            # execute init
+            if stmt.init:
+                self.execute_statement(stmt.init)
+            # loop
+            while True:
+                cond_val = self.evaluate(stmt.condition)
+                if not bool(cond_val):
+                    break
+                try:
+                    rv = self.execute_block(stmt.body)
+                    if rv is not None:
+                        return rv
+                except BreakException:
+                    break
+                except ContinueException:
+                    pass  # continue to step
+                # execute step (puede ser Assign o expresión)
+                if stmt.step:
+                    if isinstance(stmt.step, Assign):
+                        self.execute_statement(stmt.step)
+                    else:
+                        self.evaluate(stmt.step)
+            return None
+
+        if isinstance(stmt, DoWhileStmt):
+            # creeper: ... boom (cond);
+            while True:
+                try:
+                    rv = self.execute_block(stmt.body)
+                    if rv is not None:
+                        return rv
+                except BreakException:
+                    break
+                except ContinueException:
+                    pass  # continue to condition check
+                cond_val = self.evaluate(stmt.condition)
+                if not bool(cond_val):
+                    break
+            return None
+
+        if isinstance(stmt, SwitchStmt):
+            # portal (expr): caso ... defecto ... salir_portal;
+            switch_val = self.evaluate(stmt.expr)
+            matched = False
+            try:
+                for case_val_expr, case_body in stmt.cases:
+                    if case_val_expr is None:
+                        # defecto (default)
+                        if not matched:
+                            rv = self.execute_block(case_body)
+                            if rv is not None:
+                                return rv
+                            matched = True
+                    else:
+                        case_val = self.evaluate(case_val_expr)
+                        if switch_val == case_val:
+                            rv = self.execute_block(case_body)
+                            if rv is not None:
+                                return rv
+                            matched = True
+                            break  # no fall-through by default
+            except BreakException:
+                pass  # break out of switch
+            return None
+
+        if isinstance(stmt, BreakStmt):
+            raise BreakException()
+
+        if isinstance(stmt, ContinueStmt):
+            raise ContinueException()
 
         raise InterpreterError(f'Unknown statement type: {type(stmt)}')
 
