@@ -1,5 +1,5 @@
 from typing import Any, Callable, Dict, List, Optional
-from .parser import Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt, Literal, VarRef, ExprBin, ExprUnary
+from .parser import Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt, Literal, VarRef, ExprBin, ExprUnary, IfStmt
 
 
 class InterpreterError(Exception):
@@ -100,6 +100,21 @@ class Interpreter:
             # already handled at top-level, but support nested
             self.functions[stmt.name] = stmt
             self.debug_print(f"function {stmt.name} defined")
+            return None
+
+        if isinstance(stmt, IfStmt):
+            # branches: list of (cond_expr or None, stmts)
+            for cond_expr, body in stmt.branches:
+                take = False
+                if cond_expr is None:
+                    # else branch
+                    take = True
+                else:
+                    val = self.evaluate(cond_expr)
+                    take = bool(val)
+                if take:
+                    rv = self.execute_block(body)
+                    return rv
             return None
 
         raise InterpreterError(f'Unknown statement type: {type(stmt)}')
