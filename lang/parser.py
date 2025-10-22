@@ -57,6 +57,48 @@ class IfStmt(ASTNode):
 
 
 @dataclass
+class WhileStmt(ASTNode):
+    # spawner (cond): ... romper;
+    condition: Any
+    body: List[ASTNode]
+
+
+@dataclass
+class ForStmt(ASTNode):
+    # cultivar (init; cond; step): ... cosechar;
+    init: Optional[Any]  # puede ser VarDecl o Assign
+    condition: Any
+    step: Optional[Any]  # expresión de incremento
+    body: List[ASTNode]
+
+
+@dataclass
+class DoWhileStmt(ASTNode):
+    # creeper: ... boom (cond);
+    body: List[ASTNode]
+    condition: Any
+
+
+@dataclass
+class SwitchStmt(ASTNode):
+    # portal (expr): caso val: ... caso val: ... defecto: ... salir_portal;
+    expr: Any
+    cases: List[tuple]  # (value_expr or None for default, body statements)
+
+
+@dataclass
+class BreakStmt(ASTNode):
+    # romper(); -> break
+    pass
+
+
+@dataclass
+class ContinueStmt(ASTNode):
+    # continuar(); -> continue
+    pass
+
+
+@dataclass
 class ExprBin(ASTNode):
     op: str
     left: Any
@@ -310,6 +352,140 @@ class Parser:
             self.advance()
             return IfStmt(branches)
 
+        # spawner (cond): ... romper; -> while loop
+        if tok.type == "KEYWORD" and tok.value == "spawner":
+            self.advance()
+            self.expect("LPAREN")
+            cond = self.parse_expression()
+            self.expect("RPAREN")
+            self.expect("COLON")
+            body = self.parse_block_until("KEYWORD", "romper")
+            return WhileStmt(cond, body)
+
+        # cultivar (init; cond; step): ... cosechar; -> for loop
+        if tok.type == "KEYWORD" and tok.value == "cultivar":
+            self.advance()
+            self.expect("LPAREN")
+            # init: puede ser VarDecl o Assign
+            init_tok = self.current()
+            init_stmt = None
+            if init_tok and init_tok.type == "KEYWORD" and init_tok.value in ("bloques", "coordenada", "texto", "redstone", "glifo", "inventario", "mapa"):
+                # VarDecl sin semicolon
+                var_type = init_tok.value
+                self.advance()
+                name_tok = self.expect("IDENT")
+                self.expect("OP", "=")
+                expr = self.parse_expression()
+                init_stmt = VarDecl(var_type, name_tok.value, expr)
+            elif init_tok and init_tok.type == "IDENT":
+                # Assign sin semicolon
+                name = init_tok.value
+                self.advance()
+                self.expect("OP", "=")
+                expr = self.parse_expression()
+                init_stmt = Assign(name, expr)
+            # expect ';'
+            self.expect("SEMI")
+            # condition
+            cond = self.parse_expression()
+            self.expect("SEMI")
+            # step: puede ser Assign (i = i + 1) o expresión simple (i++)
+            step_tok = self.current()
+            step_stmt = None
+            if step_tok and step_tok.type == "IDENT":
+                # peek para ver si es asignación
+                peek = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else None
+                if peek and peek.type == "OP" and peek.value == "=":
+                    # Assign
+                    name = step_tok.value
+                    self.advance()
+                    self.expect("OP", "=")
+                    expr = self.parse_expression()
+                    step_stmt = Assign(name, expr)
+                else:
+                    # expresión simple
+                    step_stmt = self.parse_expression()
+            else:
+                step_stmt = self.parse_expression()
+            self.expect("RPAREN")
+            self.expect("COLON")
+            body = self.parse_block_until("KEYWORD", "cosechar")
+            return ForStmt(init_stmt, cond, step_stmt, body)
+
+        # creeper: ... boom (cond); -> do-while loop
+        if tok.type == "KEYWORD" and tok.value == "creeper":
+            self.advance()
+            self.expect("COLON")
+            # parse body until 'boom'
+            body: List[ASTNode] = []
+            while True:
+                ntok = self.current()
+                if not ntok:
+                    raise ParserError("Unterminated creeper block, expected 'boom'")
+                if ntok.type == "KEYWORD" and ntok.value == "boom":
+                    break
+                stmt = self.parse_statement()
+                if stmt:
+                    body.append(stmt)
+            # consume 'boom'
+            self.advance()
+            self.expect("LPAREN")
+            cond = self.parse_expression()
+            self.expect("RPAREN")
+            self.expect("SEMI")
+            return DoWhileStmt(body, cond)
+
+        # portal (expr): caso ... defecto ... salir_portal; -> switch-case
+        if tok.type == "KEYWORD" and tok.value == "portal":
+            self.advance()
+            self.expect("LPAREN")
+            switch_expr = self.parse_expression()
+            self.expect("RPAREN")
+            self.expect("COLON")
+            # parse cases
+            cases: List[tuple] = []
+            while True:
+                ntok = self.current()
+                if not ntok:
+                    raise ParserError("Unterminated portal block, expected 'salir_portal'")
+                if ntok.type == "KEYWORD" and ntok.value == "salir_portal":
+                    break
+                if ntok.type == "KEYWORD" and ntok.value == "caso":
+                    self.advance()
+                    case_val = self.parse_expression()
+                    self.expect("COLON")
+                    # parse statements until next 'caso', 'defecto', or 'salir_portal'
+                    case_body: List[ASTNode] = []
+                    while True:
+                        peek = self.current()
+                        if not peek:
+                            raise ParserError("Unterminated caso block")
+                        if peek.type == "KEYWORD" and peek.value in ("caso", "defecto", "salir_portal"):
+                            break
+                        stmt = self.parse_statement()
+                        if stmt:
+                            case_body.append(stmt)
+                    cases.append((case_val, case_body))
+                elif ntok.type == "KEYWORD" and ntok.value == "defecto":
+                    self.advance()
+                    self.expect("COLON")
+                    default_body: List[ASTNode] = []
+                    while True:
+                        peek = self.current()
+                        if not peek:
+                            raise ParserError("Unterminated defecto block")
+                        if peek.type == "KEYWORD" and peek.value in ("caso", "salir_portal"):
+                            break
+                        stmt = self.parse_statement()
+                        if stmt:
+                            default_body.append(stmt)
+                    cases.append((None, default_body))
+                else:
+                    raise ParserError(f"Expected 'caso' or 'defecto' in portal block at {ntok.line}:{ntok.column}")
+            # consume 'salir_portal'
+            self.advance()
+            return SwitchStmt(switch_expr, cases)
+
         # craftear <expr> ;
         if tok.type == "KEYWORD" and tok.value == "craftear":
             self.advance()
@@ -317,21 +493,35 @@ class Parser:
             self.expect("SEMI")
             return ReturnStmt(expr)
 
-        # function call or assignment
+        # function call or assignment (includes romper() and continuar())
         if tok.type in ("IDENT", "KEYWORD"):
             # peek next
             nxt = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else None
             if nxt and nxt.type == "LPAREN":
-                # call
-                callee = tok.value
-                self.advance()
-                self.expect("LPAREN")
-                args = self.parse_argument_list()
-                self.expect("RPAREN")
-                # call as statement must end with semicolon
-                if self.current() and self.current().type == "SEMI":
+                # check if it's romper() or continuar()
+                if tok.value == "romper":
                     self.advance()
-                return Call(callee, args)
+                    self.expect("LPAREN")
+                    self.expect("RPAREN")
+                    self.expect("SEMI")
+                    return BreakStmt()
+                elif tok.value == "continuar":
+                    self.advance()
+                    self.expect("LPAREN")
+                    self.expect("RPAREN")
+                    self.expect("SEMI")
+                    return ContinueStmt()
+                else:
+                    # regular function call
+                    callee = tok.value
+                    self.advance()
+                    self.expect("LPAREN")
+                    args = self.parse_argument_list()
+                    self.expect("RPAREN")
+                    # call as statement must end with semicolon
+                    if self.current() and self.current().type == "SEMI":
+                        self.advance()
+                    return Call(callee, args)
             elif nxt and nxt.type == "OP" and nxt.value == "=":
                 # assignment
                 name = tok.value
