@@ -195,6 +195,17 @@ class Parser:
         tok = self.current()
         if not tok:
             return None
+        # variable declaration inside a block (e.g. 'bloques x = 1;')
+        if tok.type == 'KEYWORD' and tok.value in ('bloques', 'coordenada', 'texto', 'redstone', 'glifo', 'inventario', 'mapa'):
+            var_type = tok.value
+            self.advance()
+            name_tok = self.expect('IDENT')
+            name = name_tok.value
+            # assignment required
+            self.expect('OP', '=')
+            expr = self.parse_expression()
+            self.expect('SEMI')
+            return VarDecl(var_type, name, expr)
 
         # letrero <expr> ;
         if tok.type == 'KEYWORD' and tok.value == 'letrero':
