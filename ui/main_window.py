@@ -10,6 +10,11 @@ from .editor_panel import EditorPanel
 from .output_panel import OutputPanel
 from .fonts import load_pixel_font_family
 
+# language tooling
+from lang.lexer import tokenize
+from lang.parser import Parser
+from lang.interpreter import run_source
+
 ASSETS = Path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
 ICON_PATHS = [ASSETS / "jcraft_logo.ico", ASSETS / "jcraft_logo.png"]
@@ -116,11 +121,40 @@ class MainWindow(QMainWindow):
         self.output_panel.btn_run.clicked.connect(self._on_run)
 
     def _on_compile(self):
+        """Run lexer + parser and display tokens and AST in the output panel."""
         self.output_panel.clear()
-        self.output_panel.append("[stub] Compilar aún no implementado.")
+        src = self.editor_panel.text()
+        try:
+            toks = tokenize(src)
+            # show tokens
+            self.output_panel.append("--- TOKENS ---")
+            for t in toks:
+                self.output_panel.append(repr(t))
+
+            # parse
+            p = Parser(toks)
+            prog = p.parse()
+            self.output_panel.append("\n--- AST ---")
+            self.output_panel.append(repr(prog))
+            self.output_panel.append("\n[OK] Compilación terminada sin errores.")
+        except Exception as e:
+            self.output_panel.append(f"[ERROR] {type(e).__name__}: {e}")
 
     def _on_run(self):
-        self.output_panel.append("[stub] Ejecutar aún no implementado.")
+        """Execute the source via the interpreter and show results."""
+        self.output_panel.clear()
+        src = self.editor_panel.text()
+        try:
+            results = run_source(src, input_callback=lambda prompt: "", debug=False)
+            self.output_panel.append("--- EJECUCIÓN ---")
+            if results:
+                for r in results:
+                    self.output_panel.append(str(r))
+            else:
+                self.output_panel.append("(sin salida)")
+            self.output_panel.append("\n[OK] Ejecución terminada.")
+        except Exception as e:
+            self.output_panel.append(f"[ERROR] {type(e).__name__}: {e}")
 
     def _zoom_in(self):
         self.editor_panel.zoom(+1)
