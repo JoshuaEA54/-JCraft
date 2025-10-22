@@ -313,16 +313,22 @@ class Parser:
 
     def parse_comparison(self):
         node = self.parse_add()
-        while self.current() and (
-            (
-                self.current().type == "OP"
-                and self.current().value in ("==", "!=", "<", ">", "<=", ">=")
-            )
-        ):
-            op = self.current().value
-            self.advance()
-            right = self.parse_add()
-            node = ExprBin(op, node, right)
+        while True:
+            tok = self.current()
+            if tok and (
+                (tok.type == 'OP' and tok.value in ('==', '!=', '<', '>', '<=', '>=')) or
+                tok.type in ('LT', 'GT')
+            ):
+                if tok.type in ('LT', 'GT'):
+                    op = '<' if tok.type == 'LT' else '>'
+                    self.advance()
+                else:
+                    op = tok.value
+                    self.advance()
+                right = self.parse_add()
+                node = ExprBin(op, node, right)
+            else:
+                break
         return node
 
     def parse_add(self):
