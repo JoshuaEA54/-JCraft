@@ -1,8 +1,22 @@
 from typing import Any, Callable, Dict, List, Optional
-from .parser import Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt, Literal, VarRef, ExprBin, ExprUnary
+from .parser import (
+    Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt, 
+    Literal, VarRef, ExprBin, ExprUnary, IfStmt, WhileStmt, ForStmt, 
+    DoWhileStmt, SwitchStmt, BreakStmt, ContinueStmt
+)
 
 
 class InterpreterError(Exception):
+    pass
+
+
+class BreakException(Exception):
+    """Control flow exception for break statement"""
+    pass
+
+
+class ContinueException(Exception):
+    """Control flow exception for continue statement"""
     pass
 
 
@@ -102,6 +116,110 @@ class Interpreter:
             self.debug_print(f"function {stmt.name} defined")
             return None
 
+        if isinstance(stmt, IfStmt):
+            # branches: list of (cond_expr or None, stmts)
+            for cond_expr, body in stmt.branches:
+                take = False
+                if cond_expr is None:
+                    # else branch
+                    take = True
+                else:
+                    val = self.evaluate(cond_expr)
+                    take = bool(val)
+                if take:
+                    rv = self.execute_block(body)
+                    return rv
+            return None
+
+        if isinstance(stmt, WhileStmt):
+            # spawner (cond): ... romper;
+            while True:
+                cond_val = self.evaluate(stmt.condition)
+                if not bool(cond_val):
+                    break
+                try:
+                    rv = self.execute_block(stmt.body)
+                    if rv is not None:
+                        return rv
+                except BreakException:
+                    break
+                except ContinueException:
+                    continue
+            return None
+
+        if isinstance(stmt, ForStmt):
+            # cultivar (init; cond; step): ... cosechar;
+            # execute init
+            if stmt.init:
+                self.execute_statement(stmt.init)
+            # loop
+            while True:
+                cond_val = self.evaluate(stmt.condition)
+                if not bool(cond_val):
+                    break
+                try:
+                    rv = self.execute_block(stmt.body)
+                    if rv is not None:
+                        return rv
+                except BreakException:
+                    break
+                except ContinueException:
+                    pass  # continue to step
+                # execute step (puede ser Assign o expresión)
+                if stmt.step:
+                    if isinstance(stmt.step, Assign):
+                        self.execute_statement(stmt.step)
+                    else:
+                        self.evaluate(stmt.step)
+            return None
+
+        if isinstance(stmt, DoWhileStmt):
+            # creeper: ... boom (cond);
+            while True:
+                try:
+                    rv = self.execute_block(stmt.body)
+                    if rv is not None:
+                        return rv
+                except BreakException:
+                    break
+                except ContinueException:
+                    pass  # continue to condition check
+                cond_val = self.evaluate(stmt.condition)
+                if not bool(cond_val):
+                    break
+            return None
+
+        if isinstance(stmt, SwitchStmt):
+            # portal (expr): caso ... defecto ... salir_portal;
+            switch_val = self.evaluate(stmt.expr)
+            matched = False
+            try:
+                for case_val_expr, case_body in stmt.cases:
+                    if case_val_expr is None:
+                        # defecto (default)
+                        if not matched:
+                            rv = self.execute_block(case_body)
+                            if rv is not None:
+                                return rv
+                            matched = True
+                    else:
+                        case_val = self.evaluate(case_val_expr)
+                        if switch_val == case_val:
+                            rv = self.execute_block(case_body)
+                            if rv is not None:
+                                return rv
+                            matched = True
+                            break  # no fall-through by default
+            except BreakException:
+                pass  # break out of switch
+            return None
+
+        if isinstance(stmt, BreakStmt):
+            raise BreakException()
+
+        if isinstance(stmt, ContinueStmt):
+            raise ContinueException()
+
         raise InterpreterError(f'Unknown statement type: {type(stmt)}')
 
     def call_function(self, name: str, arg_exprs: List[Any]):
@@ -133,7 +251,15 @@ class Interpreter:
                 raise InterpreterError(f"Variable {expr.name} not defined")
             return self.variables[expr.name]
         if isinstance(expr, Call):
-            return self.execute_statement(expr)
+            # Si es una llamada que retorna algo (como cofre o una función con return)
+            if expr.callee == 'cofre':
+                prompt = ''
+                if len(expr.args) == 1:
+                    prompt_val = self.evaluate(expr.args[0])
+                    prompt = str(prompt_val)
+                value = self.input_callback(prompt)
+                return value
+            return self.call_function(expr.callee, expr.args)
         if isinstance(expr, ExprUnary):
             val = self.evaluate(expr.operand)
             if expr.op == '-':
