@@ -2,13 +2,14 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QMenuBar, QStatusBar, QSplitter
+    QMainWindow, QWidget, QVBoxLayout, QMenuBar, QStatusBar, QSplitter, QInputDialog, QMenu
 )
 from .style import STYLE_QSS
 from .background import Background
 from .editor_panel import EditorPanel
 from .output_panel import OutputPanel
 from .fonts import load_pixel_font_family
+from .snippets import get_snippet_menu_structure
 
 # language tooling
 from lang.lexer import tokenize
@@ -84,6 +85,10 @@ class MainWindow(QMainWindow):
         act_new.triggered.connect(self._on_new)
         mb.addAction(act_new)
 
+        # Menú Insertar con snippets
+        menu_insert = mb.addMenu("Insertar")
+        self._build_snippet_menu(menu_insert)
+
         menu_view = mb.addMenu("Ver")
         act_zoom_in   = QAction("Aumentar fuente", self);  act_zoom_in.setShortcut("Ctrl++")
         act_zoom_out  = QAction("Disminuir fuente", self); act_zoom_out.setShortcut("Ctrl+-")
@@ -143,10 +148,44 @@ class MainWindow(QMainWindow):
     def _on_run(self):
         """Execute the source via the interpreter and show results."""
         self.output_panel.clear()
+        self.output_panel.append("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
+        
+        # Callback para cofre() que muestra primero el prompt en OUTPUT y luego el diálogo
+        def input_callback(prompt: str) -> str:
+            # Mostrar el prompt en la consola de salida
+            self.output_panel.append(prompt)
+            
+            # Crear diálogo con estilo para que todo sea visible (texto negro, botones negros)
+            dialog = QInputDialog(self)
+            dialog.setWindowTitle("Entrada - cofre()")
+            dialog.setLabelText(prompt)
+            dialog.setStyleSheet("""
+                QLabel { 
+                    color: black; 
+                }
+                QLineEdit { 
+                    color: black; 
+                    background-color: white; 
+                }
+                QPushButton { 
+                    color: black; 
+                    background-color: #e0e0e0;
+                    border: 1px solid #999;
+                    padding: 5px 15px;
+                }
+                QPushButton:hover {
+                    background-color: #d0d0d0;
+                }
+            """)
+            
+            if dialog.exec():
+                text = dialog.textValue()
+                return text
+            return ""  # si cancela, devuelve vacío
+        
         try:
-            results = run_source(src, input_callback=lambda prompt: "", debug=False)
-            self.output_panel.append("--- EJECUCIÓN ---")
+            results = run_source(src, input_callback=input_callback, debug=False)
             if results:
                 for r in results:
                     self.output_panel.append(str(r))
@@ -172,6 +211,46 @@ class MainWindow(QMainWindow):
         self.editor_panel.toggle_pixel_font(checked)
         fam = self.editor_panel._font_family_pixel if checked and self.editor_panel._font_family_pixel else "Consolas"
         self.output_panel.set_font_family(fam)
+
+    def _build_snippet_menu(self, parent_menu):
+        """Construye el menú de snippets organizados por categorías"""
+        snippets = get_snippet_menu_structure()
+        
+        for category, items in snippets.items():
+            # Crear submenú para cada categoría
+            category_menu = QMenu(category, parent_menu)
+            
+            for snippet_name in items.keys():
+                # Crear acción para cada snippet
+                action = QAction(snippet_name, self)
+                # Conectar con lambda que captura category y snippet_name
+                action.triggered.connect(
+                    lambda checked=False, cat=category, name=snippet_name: 
+                    self._insert_snippet(cat, name)
+                )
+                category_menu.addAction(action)
+            
+            parent_menu.addMenu(category_menu)
+    
+    def _insert_snippet(self, category: str, snippet_name: str):
+        """Inserta un snippet en el editor"""
+        from .snippets import get_snippet
+        
+        code = get_snippet(category, snippet_name)
+        if code:
+            # Insertar el código en el editor
+            current_text = self.editor_panel.text()
+            
+            # Si hay texto, agregar dos líneas en blanco antes del snippet
+            if current_text.strip():
+                new_text = current_text + "\n\n" + code
+            else:
+                new_text = code
+            
+            self.editor_panel.set_text(new_text)
+            
+            # Mostrar mensaje en la barra de estado
+            self.statusBar().showMessage(f"Snippet insertado: {snippet_name}", 3000)
 
     def run(self):
         self.show()

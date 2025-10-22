@@ -110,18 +110,14 @@ class Lexer:
                 continue
             if kind == 'STRING':
                 inner = value[1:-1]
-                try:
-                    unescaped = bytes(inner, 'utf-8').decode('unicode_escape')
-                except Exception:
-                    unescaped = inner
+                # Solo procesar escapes básicos (\n, \t, etc.) sin destruir UTF-8
+                unescaped = inner.replace('\\n', '\n').replace('\\t', '\t').replace('\\\\', '\\').replace('\\"', '"')
                 tokens.append(Token('STRING', unescaped, line_num, col))
                 continue
             if kind == 'CHAR':
                 ch = value[1:-1]
-                try:
-                    unescaped = bytes(ch, 'utf-8').decode('unicode_escape')
-                except Exception:
-                    unescaped = ch
+                # Igual para char
+                unescaped = ch.replace('\\n', '\n').replace('\\t', '\t').replace('\\\\', '\\').replace("\\'", "'")
                 tokens.append(Token('CHAR', unescaped, line_num, col))
                 continue
             if kind == 'OP':
