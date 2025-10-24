@@ -306,14 +306,62 @@ class Interpreter:
         
         if isinstance(expr, Call):
             # Si es una llamada que retorna algo (como cofre o una función con return)
-            if expr.callee == 'cofre':
+            callee = expr.callee
+            
+            # === Funciones de conversión de tipo ===
+            if callee == 'to_bloques':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_bloques expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                try:
+                    return int(val)
+                except Exception:
+                    raise InterpreterError(f"No se puede convertir '{val}' a bloques")
+            
+            if callee == 'to_coordenada':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_coordenada expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                try:
+                    return float(val)
+                except Exception:
+                    raise InterpreterError(f"No se puede convertir '{val}' a coordenada")
+            
+            if callee == 'to_texto':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_texto expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                return str(val)
+            
+            if callee == 'to_redstone':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_redstone expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                if isinstance(val, str):
+                    val_lower = val.lower()
+                    if val_lower in ('verdadero', 'true', '1'):
+                        return True
+                    if val_lower in ('falso', 'false', '0'):
+                        return False
+                return bool(val)
+            
+            if callee == 'to_glifo':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_glifo expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                if isinstance(val, str) and len(val) == 1:
+                    return val
+                raise InterpreterError(f"El valor '{val}' no es un glifo válido (carácter único)")
+            
+            # === Otras funciones nativas ===
+            if callee == 'cofre':
                 prompt = ''
                 if len(expr.args) == 1:
                     prompt_val = self.evaluate(expr.args[0])
                     prompt = str(prompt_val)
                 value = self.input_callback(prompt)
                 return value
-            if expr.callee == 'length':
+            if callee == 'length':
                 # length(lista o mapa) -> longitud
                 if len(expr.args) != 1:
                     raise InterpreterError('length expects 1 argument')
@@ -321,7 +369,7 @@ class Interpreter:
                 if not isinstance(val, (list, dict)):
                     raise InterpreterError('length expects a list or map')
                 return len(val)
-            if expr.callee == 'tiene':
+            if callee == 'tiene':
                 # tiene(mapa, clave) -> redstone (bool)
                 if len(expr.args) != 2:
                     raise InterpreterError('tiene expects 2 arguments (map, key)')
@@ -330,7 +378,7 @@ class Interpreter:
                 if not isinstance(m, dict):
                     raise InterpreterError('tiene expects a map as first argument')
                 return k in m
-            if expr.callee == 'pop':
+            if callee == 'pop':
                 # pop puede usarse como expresión también
                 if len(expr.args) != 1:
                     raise InterpreterError('pop expects 1 argument')
