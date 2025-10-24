@@ -92,6 +92,40 @@ texto entrada = cofre();
 letrero "Tienes " + entrada + " años";''',
     },
     
+    "Conversiones de Tipo": {
+        "Texto a entero (to_bloques)": '''texto s = "42";
+bloques n = to_bloques(s);
+letrero "Número: " + n;''',
+        
+        "Texto a flotante (to_coordenada)": '''texto s = "3.14";
+coordenada f = to_coordenada(s);
+letrero "Flotante: " + f;''',
+        
+        "Número a texto (to_texto)": '''bloques n = 100;
+texto s = to_texto(n);
+letrero "Texto: " + s;''',
+        
+        "Texto a booleano (to_redstone)": '''texto entrada = "verdadero";
+redstone flag = to_redstone(entrada);
+letrero "Bandera: " + flag;''',
+        
+        "Texto a carácter (to_glifo)": '''texto s = "#";
+glifo simbolo = to_glifo(s);
+letrero "Símbolo: " + simbolo;''',
+        
+        "Entrada numérica con conversión": '''letrero "Ingresa tu edad:";
+texto entrada = cofre();
+bloques edad = to_bloques(entrada);
+letrero "Edad: " + edad;''',
+        
+        "Validar entrada booleana": '''letrero "¿Continuar? (verdadero/falso):";
+texto respuesta = cofre();
+redstone continuar = to_redstone(respuesta);
+observador (continuar):
+    letrero "Continuando...";
+fin''',
+    },
+    
     "Operaciones con Listas": {
         "Crear lista vacía": '''inventario<bloques> lista = [];''',
         
@@ -197,6 +231,44 @@ fin''',
         defecto:
             letrero "Opción no válida";
     salir_portal
+fin''',
+        
+        "Calculadora con conversiones": '''mesa_crafteo vacío main():
+    letrero "=== CALCULADORA ===";
+    letrero "Ingresa el primer número:";
+    texto entrada1 = cofre();
+    bloques num1 = to_bloques(entrada1);
+    
+    letrero "Ingresa el segundo número:";
+    texto entrada2 = cofre();
+    bloques num2 = to_bloques(entrada2);
+    
+    bloques suma = num1 + num2;
+    bloques resta = num1 - num2;
+    bloques mult = num1 * num2;
+    
+    letrero "=== RESULTADOS ===";
+    letrero "Suma: " + suma;
+    letrero "Resta: " + resta;
+    letrero "Multiplicación: " + mult;
+fin''',
+        
+        "Procesamiento de lista de textos": '''mesa_crafteo vacío main():
+    inventario<texto> nums_texto = ["10", "20", "30", "40", "50"];
+    inventario<bloques> nums = [];
+    bloques suma = 0;
+    
+    letrero "Convirtiendo y sumando...";
+    cultivar (i = 0; i < length(nums_texto); i = i + 1):
+        bloques n = to_bloques(nums_texto[i]);
+        push(nums, n);
+        suma = suma + n;
+    cosechar
+    
+    letrero "Lista original: " + nums_texto;
+    letrero "Lista convertida: " + nums;
+    letrero "Suma total: " + suma;
+    letrero "Promedio: " + (suma / length(nums));
 fin''',
     },
 }
