@@ -105,27 +105,42 @@ cosechar''',
     },
     
     "Funciones": {
-        "Función con retorno": '''mesa_crafteo bloques sumar(bloques a, bloques b):
+        "Función con retorno (sumar)": '''mesa_crafteo bloques sumar(bloques a, bloques b):
     bloques resultado = a + b;
     craftear resultado;
-fin''',
+fin
+###MAIN###
+# Llamar a la función
+bloques resultado = sumar(10, 20);
+letrero("10 + 20 = " + to_texto(resultado));''',
         
-        "Función sin retorno (vacío)": '''mesa_crafteo vacío saludar(texto nombre):
-    letrero("Hola, " + nombre + "!");
-fin''',
+        "Función sin retorno (saludar)": '''mesa_crafteo vacío saludar(texto nombre):
+    letrero("¡Hola, " + nombre + "!");
+fin
+###MAIN###
+# Llamar a la función
+saludar("Jugador");''',
         
         "Función con múltiples parámetros": '''mesa_crafteo coordenada calcularPromedio(coordenada a, coordenada b, coordenada c):
     coordenada suma = a + b + c;
     coordenada promedio = suma / 3.0;
     craftear promedio;
-fin''',
+fin
+###MAIN###
+# Llamar a la función
+coordenada prom = calcularPromedio(10.0, 15.0, 20.0);
+letrero("Promedio: " + to_texto(prom));''',
         
         "Función recursiva (factorial)": '''mesa_crafteo bloques factorial(bloques n):
     observador (n <= 1):
         craftear 1;
     fin
     craftear n * factorial(n - 1);
-fin''',
+fin
+###MAIN###
+# Llamar a la función recursiva
+bloques fact = factorial(5);
+letrero("5! = " + to_texto(fact));''',
     },
     
     "Casting": {
