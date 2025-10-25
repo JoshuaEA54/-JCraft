@@ -68,7 +68,8 @@ creeper:
     intentos = intentos + 1;
 boom (intentos < 3);''',
         
-        "For (cultivar)": '''cultivar (i = 0; i < 10; i = i + 1):
+        "For (cultivar)": '''bloques i = 0;
+cultivar (i = 0; i < 10; i = i + 1):
     letrero("Iteración: " + to_texto(i));
 cosechar''',
         
@@ -94,7 +95,8 @@ spawner (i < 100):
     i = i + 1;
 romper''',
         
-        "Continue en loop": '''cultivar (j = 0; j < 10; j = j + 1):
+        "Continue en loop": '''bloques j = 0;
+cultivar (j = 0; j < 10; j = j + 1):
     observador (j == 5):
         continuar();
     fin
