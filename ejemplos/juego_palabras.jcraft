@@ -1,0 +1,39 @@
+mesa_crafteo texto invertirTexto(texto cadena):
+    # Esta es una versión simplificada
+    # En un programa real necesitarías acceso a índices de string
+    craftear cadena;
+fin
+
+mesa_crafteo redstone esPalindromo(texto palabra):
+    # Versión simplificada - compara la palabra original
+    # En implementación real invertirías y compararías
+    craftear verdadero;
+fin
+
+mesa_crafteo vacío main():
+    letrero("=== Juego de Palabras ===");
+    
+    mapa<texto, bloques> puntuaciones = {};
+    
+    puntuaciones["jugador1"] = 0;
+    puntuaciones["jugador2"] = 0;
+    
+    letrero("Ingresa una palabra:");
+    texto palabra = cofre();
+    
+    bloques longitud = 5;  # Asumimos longitud conocida
+    bloques puntos = longitud * 10;
+    
+    puntuaciones["jugador1"] = puntuaciones["jugador1"] + puntos;
+    
+    letrero("Puntuación Jugador 1: " + to_texto(puntuaciones["jugador1"]));
+    letrero("Puntuación Jugador 2: " + to_texto(puntuaciones["jugador2"]));
+    
+    observador (puntuaciones["jugador1"] > puntuaciones["jugador2"]):
+        letrero("¡Jugador 1 gana!");
+    comparador (puntuaciones["jugador2"] > puntuaciones["jugador1"]):
+        letrero("¡Jugador 2 gana!");
+    dispensador:
+        letrero("¡Empate!");
+    fin
+fin

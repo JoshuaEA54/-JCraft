@@ -1,0 +1,36 @@
+mesa_crafteo redstone esPrimo(bloques n):
+    observador (n <= 1):
+        craftear falso;
+    fin
+    
+    bloques i = 2;
+    spawner (i * i <= n):
+        bloques resto = n % i;
+        observador (resto == 0):
+            craftear falso;
+        fin
+        i = i + 1;
+    romper
+    
+    craftear verdadero;
+fin
+
+mesa_crafteo vacío main():
+    letrero("=== Números Primos hasta 50 ===");
+    
+    bloques num = 2;
+    bloques contador = 0;
+    
+    spawner (num <= 50):
+        redstone primo = esPrimo(num);
+        
+        observador (primo):
+            letrero(to_texto(num) + " es primo");
+            contador = contador + 1;
+        fin
+        
+        num = num + 1;
+    romper
+    
+    letrero("Total de primos encontrados: " + to_texto(contador));
+fin
