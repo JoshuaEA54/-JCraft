@@ -18,9 +18,7 @@ class EditorPanel(QFrame):
         layout.setSpacing(10)
 
         self.editor = QPlainTextEdit(self)
-        self.editor.setPlaceholderText(
-            'mesa_crafteo vacío main():\n  letrero "Hola, :JCraft";\nfin\n'
-        )
+        # Sin placeholder - el texto inicial se establece en main_window
         layout.addWidget(self.editor)
         self.apply_font()
 
