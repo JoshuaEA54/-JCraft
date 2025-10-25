@@ -121,6 +121,33 @@ class VarRef(ASTNode):
     name: str
 
 
+@dataclass
+class ListLiteral(ASTNode):
+    # inventario<T>: [1, 2, 3]
+    elements: List[Any]
+
+
+@dataclass
+class MapLiteral(ASTNode):
+    # mapa<K,V>: {"a": 1, "b": 2}
+    pairs: List[tuple]  # list of (key_expr, value_expr)
+
+
+@dataclass
+class IndexAccess(ASTNode):
+    # xs[i] or m[k]
+    target: Any
+    index: Any
+
+
+@dataclass
+class IndexAssign(ASTNode):
+    # xs[i] = value or m[k] = value
+    target: Any
+    index: Any
+    value: Any
+
+
 class ParserError(Exception):
     pass
 
@@ -194,8 +221,7 @@ class Parser:
             "inventario",
             "mapa",
         ):
-            var_type = tok.value
-            self.advance()
+            var_type = self._expect_type_token()  # Esto ahora maneja genéricos
             name_tok = self.expect("IDENT")
             name = name_tok.value
             # assignment
@@ -215,12 +241,52 @@ class Parser:
         raise ParserError(f"Unexpected token {tok} at top-level")
 
     def _expect_type_token(self) -> str:
+        """
+        Parse a type, including generics like inventario<bloques> or mapa<texto,bloques>
+        Returns the full type string like "inventario<bloques>"
+        """
         tok = self.current()
         if not tok:
             raise ParserError("Expected type but got EOF")
         if tok.type == "KEYWORD":
+            base_type = tok.value
             self.advance()
-            return tok.value
+            
+            # Check for generic type: inventario<T> or mapa<K,V>
+            if self.current() and self.current().type in ("LT", "OP") and \
+               (self.current().type == "LT" or self.current().value == "<"):
+                self.advance()  # consume <
+                
+                # Parse first type parameter (simple type only, no nested generics)
+                tok = self.current()
+                if not tok or tok.type != "KEYWORD":
+                    raise ParserError(f"Expected type parameter but got {tok.type if tok else 'EOF'}")
+                type_param1 = tok.value
+                self.advance()
+                
+                type_params = [type_param1]
+                
+                # Check for second type parameter (for mapa<K,V>)
+                if self.current() and self.current().type == "COMMA":
+                    self.advance()
+                    tok = self.current()
+                    if not tok or tok.type != "KEYWORD":
+                        raise ParserError(f"Expected second type parameter but got {tok.type if tok else 'EOF'}")
+                    type_param2 = tok.value
+                    self.advance()
+                    type_params.append(type_param2)
+                
+                # Expect >
+                tok = self.current()
+                if tok and (tok.type == "GT" or (tok.type == "OP" and tok.value == ">")):
+                    self.advance()
+                else:
+                    raise ParserError(f"Expected '>' to close generic type at {tok.line if tok else 'EOF'}")
+                
+                # Build full type string
+                return f"{base_type}<{','.join(type_params)}>"
+            
+            return base_type
         raise ParserError(
             f"Expected type keyword but got {tok.type} at {tok.line}:{tok.column}"
         )
@@ -268,7 +334,7 @@ class Parser:
         tok = self.current()
         if not tok:
             return None
-        # variable declaration inside a block (e.g. 'bloques x = 1;')
+        # variable declaration inside a block (e.g. 'bloques x = 1;' or 'inventario<bloques> xs = [1,2];')
         if tok.type == "KEYWORD" and tok.value in (
             "bloques",
             "coordenada",
@@ -278,8 +344,7 @@ class Parser:
             "inventario",
             "mapa",
         ):
-            var_type = tok.value
-            self.advance()
+            var_type = self._expect_type_token()  # Maneja genéricos
             name_tok = self.expect("IDENT")
             name = name_tok.value
             # assignment required
@@ -497,6 +562,32 @@ class Parser:
         if tok.type in ("IDENT", "KEYWORD"):
             # peek next
             nxt = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else None
+            
+            # Check for index assignment: xs[i] = value or xs[i] += value
+            if nxt and nxt.type == "LBRACK":
+                name = tok.value
+                self.advance()
+                self.expect("LBRACK")
+                index_expr = self.parse_expression()
+                self.expect("RBRACK")
+                
+                # Check for = or compound assignment operator
+                op_tok = self.current()
+                if not (op_tok and op_tok.type == "OP" and op_tok.value in ("=", "+=", "-=", "*=", "/=", "%=")):
+                    raise ParserError(f"Expected assignment operator after index at {op_tok.line}:{op_tok.column}")
+                
+                op = op_tok.value
+                self.advance()
+                value_expr = self.parse_expression()
+                self.expect("SEMI")
+                
+                # Transform compound assignments: xs[i] += 1 -> xs[i] = xs[i] + 1
+                if op in ("+=", "-=", "*=", "/=", "%="):
+                    base_op = op[0]  # Extract '+', '-', '*', '/', '%'
+                    value_expr = ExprBin(base_op, IndexAccess(VarRef(name), index_expr), value_expr)
+                
+                return IndexAssign(VarRef(name), index_expr, value_expr)
+            
             if nxt and nxt.type == "LPAREN":
                 # check if it's romper() or continuar()
                 if tok.value == "romper":
@@ -522,13 +613,21 @@ class Parser:
                     if self.current() and self.current().type == "SEMI":
                         self.advance()
                     return Call(callee, args)
-            elif nxt and nxt.type == "OP" and nxt.value == "=":
-                # assignment
+            elif nxt and nxt.type == "OP" and nxt.value in ("=", "+=", "-=", "*=", "/=", "%="):
+                # assignment or compound assignment
                 name = tok.value
                 self.advance()
-                self.expect("OP", "=")
+                op_tok = self.current()
+                op = op_tok.value
+                self.advance()
                 expr = self.parse_expression()
                 self.expect("SEMI")
+                
+                # Transform compound assignments: x += 1 -> x = x + 1
+                if op in ("+=", "-=", "*=", "/=", "%="):
+                    base_op = op[0]  # Extract '+', '-', '*', '/', '%'
+                    expr = ExprBin(base_op, VarRef(name), expr)
+                
                 return Assign(name, expr)
 
         raise ParserError(
@@ -616,7 +715,18 @@ class Parser:
             self.advance()
             operand = self.parse_unary()
             return ExprUnary("no", operand)
-        return self.parse_primary()
+        return self.parse_postfix()
+    
+    def parse_postfix(self):
+        """Parse postfix operators like indexación: xs[0], m["key"]"""
+        node = self.parse_primary()
+        # Soporte para indexación postfix
+        while self.current() and self.current().type == "LBRACK":
+            self.advance()
+            index_expr = self.parse_expression()
+            self.expect("RBRACK")
+            node = IndexAccess(node, index_expr)
+        return node
 
     def parse_primary(self):
         tok = self.current()
@@ -662,6 +772,37 @@ class Parser:
             node = self.parse_expression()
             self.expect("RPAREN")
             return node
+        
+        # Lista literal: [1, 2, 3]
+        if tok.type == "LBRACK":
+            self.advance()
+            elements = []
+            if not (self.current() and self.current().type == "RBRACK"):
+                while True:
+                    elements.append(self.parse_expression())
+                    if self.current() and self.current().type == "COMMA":
+                        self.advance()
+                        continue
+                    break
+            self.expect("RBRACK")
+            return ListLiteral(elements)
+        
+        # Mapa literal: {"clave": valor, "otra": valor2}
+        if tok.type == "LBRACE":
+            self.advance()
+            pairs = []
+            if not (self.current() and self.current().type == "RBRACE"):
+                while True:
+                    key = self.parse_expression()
+                    self.expect("COLON")
+                    value = self.parse_expression()
+                    pairs.append((key, value))
+                    if self.current() and self.current().type == "COMMA":
+                        self.advance()
+                        continue
+                    break
+            self.expect("RBRACE")
+            return MapLiteral(pairs)
 
         raise ParserError(f"Unexpected token in expression: {tok}")
 

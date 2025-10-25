@@ -2,7 +2,8 @@ from typing import Any, Callable, Dict, List, Optional
 from .parser import (
     Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt, 
     Literal, VarRef, ExprBin, ExprUnary, IfStmt, WhileStmt, ForStmt, 
-    DoWhileStmt, SwitchStmt, BreakStmt, ContinueStmt
+    DoWhileStmt, SwitchStmt, BreakStmt, ContinueStmt, ListLiteral, 
+    MapLiteral, IndexAccess, IndexAssign
 )
 
 
@@ -79,7 +80,7 @@ class Interpreter:
             return val
 
         if isinstance(stmt, Call):
-            # builtins: letrero, cofre
+            # builtins: letrero, cofre, length, push, pop, tiene
             if stmt.callee == 'letrero':
                 if len(stmt.args) != 1:
                     raise InterpreterError('letrero expects 1 argument')
@@ -95,6 +96,29 @@ class Interpreter:
                     prompt = str(prompt_val)
                 value = self.input_callback(prompt)
                 return value
+            if stmt.callee == 'push':
+                # push(lista, elemento)
+                if len(stmt.args) != 2:
+                    raise InterpreterError('push expects 2 arguments (list, element)')
+                arr = self.evaluate(stmt.args[0])
+                val = self.evaluate(stmt.args[1])
+                if not isinstance(arr, list):
+                    raise InterpreterError('push expects a list as first argument')
+                arr.append(val)
+                self.debug_print(f'push -> {arr}')
+                return None
+            if stmt.callee == 'pop':
+                # pop(lista) - removes and returns last element
+                if len(stmt.args) != 1:
+                    raise InterpreterError('pop expects 1 argument (list)')
+                arr = self.evaluate(stmt.args[0])
+                if not isinstance(arr, list):
+                    raise InterpreterError('pop expects a list')
+                if len(arr) == 0:
+                    raise InterpreterError('pop on empty list')
+                val = arr.pop()
+                self.debug_print(f'pop -> {val}')
+                return val
             # user function call
             return self.call_function(stmt.callee, stmt.args)
 
@@ -102,6 +126,18 @@ class Interpreter:
             val = self.evaluate(stmt.value)
             self.variables[stmt.name] = val
             self.debug_print(f"assign {stmt.name} = {val}")
+            return None
+        
+        if isinstance(stmt, IndexAssign):
+            # xs[i] = value or m[k] = value
+            target = self.evaluate(stmt.target)
+            index = self.evaluate(stmt.index)
+            value = self.evaluate(stmt.value)
+            try:
+                target[index] = value
+                self.debug_print(f"index assign {target}[{index}] = {value}")
+            except (KeyError, IndexError, TypeError) as e:
+                raise InterpreterError(f"Index assignment error: {e}")
             return None
 
         if isinstance(stmt, VarDecl):
@@ -250,15 +286,108 @@ class Interpreter:
             if expr.name not in self.variables:
                 raise InterpreterError(f"Variable {expr.name} not defined")
             return self.variables[expr.name]
+        
+        if isinstance(expr, ListLiteral):
+            # [1, 2, 3] -> Python list
+            return [self.evaluate(e) for e in expr.elements]
+        
+        if isinstance(expr, MapLiteral):
+            # {"a": 1, "b": 2} -> Python dict
+            return {self.evaluate(k): self.evaluate(v) for k, v in expr.pairs}
+        
+        if isinstance(expr, IndexAccess):
+            # xs[i] or m[k]
+            target = self.evaluate(expr.target)
+            index = self.evaluate(expr.index)
+            try:
+                return target[index]
+            except (KeyError, IndexError, TypeError) as e:
+                raise InterpreterError(f"Index access error: {e}")
+        
         if isinstance(expr, Call):
             # Si es una llamada que retorna algo (como cofre o una función con return)
-            if expr.callee == 'cofre':
+            callee = expr.callee
+            
+            # === Funciones de conversión de tipo ===
+            if callee == 'to_bloques':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_bloques expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                try:
+                    return int(val)
+                except Exception:
+                    raise InterpreterError(f"No se puede convertir '{val}' a bloques")
+            
+            if callee == 'to_coordenada':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_coordenada expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                try:
+                    return float(val)
+                except Exception:
+                    raise InterpreterError(f"No se puede convertir '{val}' a coordenada")
+            
+            if callee == 'to_texto':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_texto expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                return str(val)
+            
+            if callee == 'to_redstone':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_redstone expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                if isinstance(val, str):
+                    val_lower = val.lower()
+                    if val_lower in ('verdadero', 'true', '1'):
+                        return True
+                    if val_lower in ('falso', 'false', '0'):
+                        return False
+                return bool(val)
+            
+            if callee == 'to_glifo':
+                if len(expr.args) != 1:
+                    raise InterpreterError('to_glifo expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                if isinstance(val, str) and len(val) == 1:
+                    return val
+                raise InterpreterError(f"El valor '{val}' no es un glifo válido (carácter único)")
+            
+            # === Otras funciones nativas ===
+            if callee == 'cofre':
                 prompt = ''
                 if len(expr.args) == 1:
                     prompt_val = self.evaluate(expr.args[0])
                     prompt = str(prompt_val)
                 value = self.input_callback(prompt)
                 return value
+            if callee == 'length':
+                # length(lista o mapa) -> longitud
+                if len(expr.args) != 1:
+                    raise InterpreterError('length expects 1 argument')
+                val = self.evaluate(expr.args[0])
+                if not isinstance(val, (list, dict)):
+                    raise InterpreterError('length expects a list or map')
+                return len(val)
+            if callee == 'tiene':
+                # tiene(mapa, clave) -> redstone (bool)
+                if len(expr.args) != 2:
+                    raise InterpreterError('tiene expects 2 arguments (map, key)')
+                m = self.evaluate(expr.args[0])
+                k = self.evaluate(expr.args[1])
+                if not isinstance(m, dict):
+                    raise InterpreterError('tiene expects a map as first argument')
+                return k in m
+            if callee == 'pop':
+                # pop puede usarse como expresión también
+                if len(expr.args) != 1:
+                    raise InterpreterError('pop expects 1 argument')
+                arr = self.evaluate(expr.args[0])
+                if not isinstance(arr, list):
+                    raise InterpreterError('pop expects a list')
+                if len(arr) == 0:
+                    raise InterpreterError('pop on empty list')
+                return arr.pop()
             return self.call_function(expr.callee, expr.args)
         if isinstance(expr, ExprUnary):
             val = self.evaluate(expr.operand)
