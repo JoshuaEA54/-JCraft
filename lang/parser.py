@@ -563,16 +563,29 @@ class Parser:
             # peek next
             nxt = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else None
             
-            # Check for index assignment: xs[i] = value
+            # Check for index assignment: xs[i] = value or xs[i] += value
             if nxt and nxt.type == "LBRACK":
                 name = tok.value
                 self.advance()
                 self.expect("LBRACK")
                 index_expr = self.parse_expression()
                 self.expect("RBRACK")
-                self.expect("OP", "=")
+                
+                # Check for = or compound assignment operator
+                op_tok = self.current()
+                if not (op_tok and op_tok.type == "OP" and op_tok.value in ("=", "+=", "-=", "*=", "/=", "%=")):
+                    raise ParserError(f"Expected assignment operator after index at {op_tok.line}:{op_tok.column}")
+                
+                op = op_tok.value
+                self.advance()
                 value_expr = self.parse_expression()
                 self.expect("SEMI")
+                
+                # Transform compound assignments: xs[i] += 1 -> xs[i] = xs[i] + 1
+                if op in ("+=", "-=", "*=", "/=", "%="):
+                    base_op = op[0]  # Extract '+', '-', '*', '/', '%'
+                    value_expr = ExprBin(base_op, IndexAccess(VarRef(name), index_expr), value_expr)
+                
                 return IndexAssign(VarRef(name), index_expr, value_expr)
             
             if nxt and nxt.type == "LPAREN":
@@ -600,13 +613,21 @@ class Parser:
                     if self.current() and self.current().type == "SEMI":
                         self.advance()
                     return Call(callee, args)
-            elif nxt and nxt.type == "OP" and nxt.value == "=":
-                # assignment
+            elif nxt and nxt.type == "OP" and nxt.value in ("=", "+=", "-=", "*=", "/=", "%="):
+                # assignment or compound assignment
                 name = tok.value
                 self.advance()
-                self.expect("OP", "=")
+                op_tok = self.current()
+                op = op_tok.value
+                self.advance()
                 expr = self.parse_expression()
                 self.expect("SEMI")
+                
+                # Transform compound assignments: x += 1 -> x = x + 1
+                if op in ("+=", "-=", "*=", "/=", "%="):
+                    base_op = op[0]  # Extract '+', '-', '*', '/', '%'
+                    expr = ExprBin(base_op, VarRef(name), expr)
+                
                 return Assign(name, expr)
 
         raise ParserError(
