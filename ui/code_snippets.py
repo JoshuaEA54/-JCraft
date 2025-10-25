@@ -37,7 +37,8 @@ dispensador:
     letrero("Hace frío");
 fin''',
         
-        "FOR (cultivar-cosechar)": '''cultivar (i = 0; i < 5; i = i + 1):
+        "FOR (cultivar-cosechar)": '''bloques i = 0;
+cultivar (i = 0; i < 5; i = i + 1):
     letrero("Iteración " + to_texto(i));
 cosechar''',
         
@@ -147,6 +148,7 @@ letrero("Elemento removido: " + to_texto(ultimo));''',
 letrero("Tamaño: " + to_texto(tamaño));''',
         
         "Recorrer lista con FOR": '''inventario<bloques> nums = [1, 2, 3, 4, 5];
+bloques i = 0;
 cultivar (i = 0; i < length(nums); i = i + 1):
     letrero("Elemento " + to_texto(i) + ": " + to_texto(nums[i]));
 cosechar''',
@@ -226,6 +228,7 @@ letrero("¡Despegue!");''',
         "Inventario simple": '''inventario<texto> items = ["Espada", "Escudo", "Poción"];
 
 letrero("=== INVENTARIO ===");
+bloques i = 0;
 cultivar (i = 0; i < length(items); i = i + 1):
     letrero(to_texto(i + 1) + ". " + items[i]);
 cosechar''',
@@ -264,6 +267,7 @@ salir_portal''',
         "Suma de lista": '''inventario<bloques> nums = [10, 20, 30, 40, 50];
 bloques suma = 0;
 
+bloques i = 0;
 cultivar (i = 0; i < length(nums); i = i + 1):
     suma += nums[i];
 cosechar
