@@ -1,0 +1,107 @@
+# Ejemplo Avanzado: Sistema de Inventario de Items
+# Combina operadores compuestos, colecciones, conversiones y más
+
+mesa_crafteo vacío mostrar_inventario(mapa<texto,bloques> inv):
+    letrero("=== INVENTARIO ===");
+    
+    observador (tiene(inv, "diamantes")):
+        letrero("Diamantes: " + to_texto(inv["diamantes"]));
+    fin
+    
+    observador (tiene(inv, "oro")):
+        letrero("Oro: " + to_texto(inv["oro"]));
+    fin
+    
+    observador (tiene(inv, "hierro")):
+        letrero("Hierro: " + to_texto(inv["hierro"]));
+    fin
+    
+    letrero("==================");
+fin
+
+mesa_crafteo vacío main():
+    letrero("🎮 SISTEMA DE INVENTARIO CON OPERADORES COMPUESTOS");
+    letrero("");
+    
+    # Inicializar inventario
+    mapa<texto,bloques> items = {};
+    items["diamantes"] = 0;
+    items["oro"] = 0;
+    items["hierro"] = 0;
+    
+    # Recolectar recursos usando +=
+    letrero("⛏️ Recolectando recursos...");
+    items["diamantes"] += 5;
+    letrero("  Encontrado 5 diamantes");
+    
+    items["oro"] += 10;
+    letrero("  Encontrado 10 de oro");
+    
+    items["hierro"] += 20;
+    letrero("  Encontrado 20 de hierro");
+    letrero("");
+    
+    mostrar_inventario(items);
+    letrero("");
+    
+    # Craftear items (consume recursos con -=)
+    letrero("🔨 Crafteando espada de diamante...");
+    items["diamantes"] -= 2;
+    letrero("  Usados 2 diamantes");
+    
+    letrero("🔨 Crafteando armadura de oro...");
+    items["oro"] -= 5;
+    letrero("  Usados 5 de oro");
+    letrero("");
+    
+    mostrar_inventario(items);
+    letrero("");
+    
+    # Bonus: duplicar recursos con *=
+    letrero("✨ ¡BONUS! Duplicando diamantes...");
+    items["diamantes"] *= 2;
+    letrero("");
+    
+    mostrar_inventario(items);
+    letrero("");
+    
+    # Sistema de puntos con operadores compuestos
+    letrero("🎯 SISTEMA DE PUNTOS");
+    bloques puntos = 100;
+    bloques multiplicador = 1;
+    
+    letrero("Puntos iniciales: " + to_texto(puntos));
+    
+    # Ganar puntos por recolectar
+    bloques i = 0;
+    spawner (i < 3):
+        puntos += 50;
+        letrero("  +50 puntos por recolectar");
+        i += 1;
+    romper
+    
+    # Aplicar multiplicador
+    multiplicador += 1;
+    puntos *= multiplicador;
+    letrero("  x" + to_texto(multiplicador) + " multiplicador aplicado");
+    
+    letrero("Puntos finales: " + to_texto(puntos));
+    letrero("");
+    
+    # Estadísticas finales
+    letrero("📊 ESTADÍSTICAS FINALES:");
+    bloques total_items = items["diamantes"];
+    total_items += items["oro"];
+    total_items += items["hierro"];
+    
+    letrero("  Total de items: " + to_texto(total_items));
+    letrero("  Puntos: " + to_texto(puntos));
+    
+    # Calcular promedio usando /=
+    coordenada promedio = to_coordenada(to_texto(total_items));
+    promedio /= 3.0;
+    letrero("  Promedio por tipo: " + to_texto(promedio));
+    
+    letrero("");
+    letrero("🎉 ¡Sesión completada!");
+fin

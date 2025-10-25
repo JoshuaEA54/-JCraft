@@ -33,114 +33,128 @@ mapa<texto, texto> jugador = {"nombre": "Alex", "clase": "minero"};''',
     },
     
     "Estructuras": {
-        "If simple (observador)": '''observador (vida > 50):
-    letrero "Tienes buena salud";
+        "If simple (observador)": '''bloques vida = 80;
+observador (vida > 50):
+    letrero("Tienes buena salud");
 fin''',
         
-        "If-Else (observador-dispensador)": '''observador (diamantes > 10):
-    letrero "Eres rico!";
+        "If-Else (observador-dispensador)": '''bloques diamantes = 15;
+observador (diamantes > 10):
+    letrero("Eres rico!");
 dispensador:
-    letrero "Necesitas más diamantes";
+    letrero("Necesitas más diamantes");
 fin''',
         
-        "If-Else If-Else completo": '''observador (puntaje >= 90):
-    letrero "Excelente";
+        "If-Else If-Else completo": '''bloques puntaje = 85;
+observador (puntaje >= 90):
+    letrero("Excelente");
 comparador (puntaje >= 70):
-    letrero "Bien";
+    letrero("Bien");
 comparador (puntaje >= 50):
-    letrero "Regular";
+    letrero("Regular");
 dispensador:
-    letrero "Necesitas mejorar";
+    letrero("Necesitas mejorar");
 fin''',
         
         "While (spawner)": '''bloques contador = 0;
 spawner (contador < 5):
-    letrero "Contador: " + contador;
+    letrero("Contador: " + to_texto(contador));
     contador = contador + 1;
 romper''',
         
         "Do-While (creeper)": '''bloques intentos = 0;
 creeper:
-    letrero "Intento número: " + intentos;
+    letrero("Intento número: " + to_texto(intentos));
     intentos = intentos + 1;
 boom (intentos < 3);''',
         
-        "For (cultivar)": '''cultivar (i = 0; i < 10; i = i + 1):
-    letrero "Iteración: " + i;
+        "For (cultivar)": '''bloques i = 0;
+cultivar (i = 0; i < 10; i = i + 1):
+    letrero("Iteración: " + to_texto(i));
 cosechar''',
         
         "Switch (portal)": '''texto comando = "saltar";
 portal (comando):
     caso "saltar":
-        letrero "Saltando...";
+        letrero("Saltando...");
     caso "correr":
-        letrero "Corriendo...";
+        letrero("Corriendo...");
     caso "atacar":
-        letrero "Atacando...";
+        letrero("Atacando...");
     defecto:
-        letrero "Comando desconocido";
+        letrero("Comando desconocido");
 salir_portal''',
         
         "Break en loop": '''bloques i = 0;
 spawner (i < 100):
     observador (i == 5):
-        letrero "Saliendo en 5";
+        letrero("Saliendo en 5");
         romper();
     fin
-    letrero i;
+    letrero(to_texto(i));
     i = i + 1;
 romper''',
         
-        "Continue en loop": '''cultivar (j = 0; j < 10; j = j + 1):
+        "Continue en loop": '''bloques j = 0;
+cultivar (j = 0; j < 10; j = j + 1):
     observador (j == 5):
         continuar();
     fin
-    letrero "Número: " + j;
+    letrero("Número: " + to_texto(j));
 cosechar''',
     },
     
     "Funciones": {
-        "Función con retorno": '''mesa_crafteo bloques sumar(bloques a, bloques b):
+        "Función con retorno (sumar)": '''mesa_crafteo bloques sumar(bloques a, bloques b):
     bloques resultado = a + b;
     craftear resultado;
-fin''',
+fin
+###MAIN###
+# Llamar a la función
+bloques resultado = sumar(10, 20);
+letrero("10 + 20 = " + to_texto(resultado));''',
         
-        "Función sin retorno (vacío)": '''mesa_crafteo vacío saludar(texto nombre):
-    letrero "Hola, " + nombre + "!";
-fin''',
+        "Función sin retorno (saludar)": '''mesa_crafteo vacío saludar(texto nombre):
+    letrero("¡Hola, " + nombre + "!");
+fin
+###MAIN###
+# Llamar a la función
+saludar("Jugador");''',
         
         "Función con múltiples parámetros": '''mesa_crafteo coordenada calcularPromedio(coordenada a, coordenada b, coordenada c):
     coordenada suma = a + b + c;
     coordenada promedio = suma / 3.0;
     craftear promedio;
-fin''',
+fin
+###MAIN###
+# Llamar a la función
+coordenada prom = calcularPromedio(10.0, 15.0, 20.0);
+letrero("Promedio: " + to_texto(prom));''',
         
         "Función recursiva (factorial)": '''mesa_crafteo bloques factorial(bloques n):
     observador (n <= 1):
         craftear 1;
     fin
     craftear n * factorial(n - 1);
-fin''',
-        
-        "Main básico": '''mesa_crafteo vacío main():
-    letrero "Programa iniciado";
-    # Tu código aquí
-    letrero "Programa terminado";
-fin''',
+fin
+###MAIN###
+# Llamar a la función recursiva
+bloques fact = factorial(5);
+letrero("5! = " + to_texto(fact));''',
     },
     
     "Casting": {
         "Conversión a entero": '''texto entrada = cofre();
 bloques numero = to_bloques(entrada);
-letrero "Número ingresado: " + numero;''',
+letrero("Número ingresado: " + to_texto(numero));''',
         
         "Conversión a flotante": '''texto valor = "3.14";
 coordenada pi = to_coordenada(valor);
-letrero "Pi aproximado: " + pi;''',
+letrero("Pi aproximado: " + to_texto(pi));''',
         
         "Conversión a texto": '''bloques edad = 25;
 texto mensaje = "Tienes " + to_texto(edad) + " años";
-letrero mensaje;''',
+letrero(mensaje);''',
     },
     
     "Ejemplos": {
@@ -153,64 +167,65 @@ mesa_crafteo bloques restar(bloques a, bloques b):
 fin
 
 mesa_crafteo vacío main():
-    letrero "=== Calculadora Simple ===";
+    letrero("=== Calculadora Simple ===");
     
-    letrero "Ingresa el primer número:";
+    letrero("Ingresa el primer número:");
     texto entrada1 = cofre();
     bloques num1 = to_bloques(entrada1);
     
-    letrero "Ingresa el segundo número:";
+    letrero("Ingresa el segundo número:");
     texto entrada2 = cofre();
     bloques num2 = to_bloques(entrada2);
     
     bloques suma = sumar(num1, num2);
     bloques resta = restar(num1, num2);
     
-    letrero "Suma: " + suma;
-    letrero "Resta: " + resta;
+    letrero("Suma: " + to_texto(suma));
+    letrero("Resta: " + to_texto(resta));
 fin''',
         
         "Programa completo: Contador con loops": '''mesa_crafteo vacío main():
-    letrero "=== Contador ===";
+    letrero("=== Contador ===");
     
     bloques limite = 5;
     bloques i = 1;
     
-    letrero "Contando con while:";
+    letrero("Contando con while:");
     spawner (i <= limite):
-        letrero "Número: " + i;
+        letrero("Número: " + to_texto(i));
         i = i + 1;
     romper
     
-    letrero "Contando con for:";
+    letrero("Contando con for:");
+    bloques j = 0;
     cultivar (j = 1; j <= limite; j = j + 1):
-        letrero "Número: " + j;
+        letrero("Número: " + to_texto(j));
     cosechar
     
-    letrero "Fin del programa";
+    letrero("Fin del programa");
 fin''',
         
         "Programa completo: Sistema de menú": '''mesa_crafteo vacío main():
-    letrero "=== Menú Principal ===";
-    letrero "1. Nueva partida";
-    letrero "2. Cargar partida";
-    letrero "3. Opciones";
-    letrero "4. Salir";
+    letrero("=== Menú Principal ===");
+    letrero("1. Nueva partida");
+    letrero("2. Cargar partida");
+    letrero("3. Opciones");
+    letrero("4. Salir");
     
-    letrero "Elige una opción:";
+    letrero("Elige una opción:");
     texto entrada = cofre();
     
     portal (entrada):
         caso "1":
-            letrero "Iniciando nueva partida...";
+            letrero("Iniciando nueva partida...");
         caso "2":
-            letrero "Cargando partida...";
+            letrero("Cargando partida...");
         caso "3":
-            letrero "Abriendo opciones...";
+            letrero("Abriendo opciones...");
         caso "4":
-            letrero "Saliendo del juego...";
+            letrero("Saliendo del juego...");
         defecto:
-            letrero "Opción no válida";
+            letrero("Opción no válida");
     salir_portal
 fin''',
         
@@ -222,35 +237,36 @@ fin''',
 fin
 
 mesa_crafteo vacío main():
-    letrero "Ingresa un número:";
+    letrero("Ingresa un número:");
     texto entrada = cofre();
     bloques numero = to_bloques(entrada);
     
     redstone positivo = esPositivo(numero);
     
     observador (positivo):
-        letrero "El número es positivo";
+        letrero("El número es positivo");
     dispensador:
-        letrero "El número es cero o negativo";
+        letrero("El número es cero o negativo");
     fin
 fin''',
         
         "Programa completo: Búsqueda en rango": '''mesa_crafteo vacío main():
-    letrero "=== Buscar número par ===";
+    letrero("=== Buscar número par ===");
     
     bloques inicio = 1;
     bloques fin_busqueda = 20;
+    bloques i = 0;
     
     cultivar (i = inicio; i <= fin_busqueda; i = i + 1):
         bloques residuo = i % 2;
         
         observador (residuo == 0):
-            letrero "Primer número par encontrado: " + i;
+            letrero("Primer número par encontrado: " + to_texto(i));
             romper();
         fin
     cosechar
     
-    letrero "Búsqueda completada";
+    letrero("Búsqueda completada");
 fin''',
     },
 }
