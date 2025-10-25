@@ -254,39 +254,54 @@ fin
             
         current_text = self.editor_panel.text()
         
+        # Si el snippet es un EJEMPLO COMPLETO (ya tiene su propio main), reemplazar todo
+        if "mesa_crafteo vacío main():" in code and category == "Ejemplos":
+            self.editor_panel.set_text(code)
+            self.statusBar().showMessage(f"Ejemplo insertado: {snippet_name}", 3000)
+            return
+        
         # Verificar si el snippet tiene separación ###MAIN###
         if "###MAIN###" in code:
             parts = code.split("###MAIN###")
             code_antes_main = parts[0].strip()
             code_dentro_main = parts[1].strip() if len(parts) > 1 else ""
             
-            # Insertar la parte antes del main
-            if "mesa_crafteo vacío main():" in current_text:
-                main_pos = current_text.find("mesa_crafteo vacío main():")
-                current_text = current_text[:main_pos] + code_antes_main + "\n\n" + current_text[main_pos:]
-            else:
-                current_text = code_antes_main + "\n\n" + current_text
+            # Buscar la posición del main UNA SOLA VEZ
+            if "mesa_crafteo vacío main():" not in current_text:
+                # No hay main, crear estructura básica
+                current_text = code_antes_main + "\n\nmesa_crafteo vacío main():\n    \nfin\n"
             
-            # Insertar la parte dentro del main
-            if code_dentro_main and "mesa_crafteo vacío main():" in current_text:
-                lines = current_text.split('\n')
-                new_lines = []
+            # Buscar la posición exacta del main
+            main_index = current_text.find("mesa_crafteo vacío main():")
+            
+            if main_index != -1:
+                # Dividir el texto en: antes_del_main, main, después_del_main
+                antes_del_main = current_text[:main_index]
+                desde_main = current_text[main_index:]
+                
+                # Insertar la definición de función ANTES del main
+                nuevo_antes = antes_del_main + code_antes_main + "\n\n"
+                
+                # Ahora procesar la parte dentro del main
+                lineas_main = desde_main.split('\n')
+                nuevas_lineas = []
                 insertado = False
                 
-                for line in lines:
-                    new_lines.append(line)
+                for i, linea in enumerate(lineas_main):
+                    nuevas_lineas.append(linea)
                     
-                    if "mesa_crafteo vacío main():" in line and not insertado:
-                        # Insertar el código dentro del main con indentación
-                        snippet_lines = code_dentro_main.split('\n')
-                        for snippet_line in snippet_lines:
+                    # Insertar después de la primera línea del main (la declaración)
+                    if i == 0 and "mesa_crafteo vacío main():" in linea and code_dentro_main and not insertado:
+                        # Agregar el código dentro del main con indentación
+                        for snippet_line in code_dentro_main.split('\n'):
                             if snippet_line.strip():
-                                new_lines.append("    " + snippet_line)
+                                nuevas_lineas.append("    " + snippet_line)
                             else:
-                                new_lines.append(snippet_line)
+                                nuevas_lineas.append(snippet_line)
                         insertado = True
                 
-                new_text = '\n'.join(new_lines)
+                nuevo_main = '\n'.join(nuevas_lineas)
+                new_text = nuevo_antes + nuevo_main
             else:
                 new_text = current_text
         else:
