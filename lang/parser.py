@@ -114,6 +114,7 @@ class ExprUnary(ASTNode):
 @dataclass
 class Literal(ASTNode):
     value: Any
+    literal_type: Optional[str] = None  # 'STRING', 'CHAR', etc.
 
 
 @dataclass
@@ -740,10 +741,10 @@ class Parser:
             return Literal(tok.value)
         if tok.type == "STRING":
             self.advance()
-            return Literal(tok.value)
+            return Literal(tok.value, literal_type='STRING')
         if tok.type == "CHAR":
             self.advance()
-            return Literal(tok.value)
+            return Literal(tok.value, literal_type='CHAR')
         if tok.type == "BOOL":
             self.advance()
             return Literal(tok.value)
