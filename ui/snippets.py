@@ -33,61 +33,64 @@ mapa<texto, texto> jugador = {"nombre": "Alex", "clase": "minero"};''',
     },
     
     "Estructuras": {
-        "If simple (observador)": '''observador (vida > 50):
-    letrero "Tienes buena salud";
+        "If simple (observador)": '''bloques vida = 80;
+observador (vida > 50):
+    letrero("Tienes buena salud");
 fin''',
         
-        "If-Else (observador-dispensador)": '''observador (diamantes > 10):
-    letrero "Eres rico!";
+        "If-Else (observador-dispensador)": '''bloques diamantes = 15;
+observador (diamantes > 10):
+    letrero("Eres rico!");
 dispensador:
-    letrero "Necesitas más diamantes";
+    letrero("Necesitas más diamantes");
 fin''',
         
-        "If-Else If-Else completo": '''observador (puntaje >= 90):
-    letrero "Excelente";
+        "If-Else If-Else completo": '''bloques puntaje = 85;
+observador (puntaje >= 90):
+    letrero("Excelente");
 comparador (puntaje >= 70):
-    letrero "Bien";
+    letrero("Bien");
 comparador (puntaje >= 50):
-    letrero "Regular";
+    letrero("Regular");
 dispensador:
-    letrero "Necesitas mejorar";
+    letrero("Necesitas mejorar");
 fin''',
         
         "While (spawner)": '''bloques contador = 0;
 spawner (contador < 5):
-    letrero "Contador: " + contador;
+    letrero("Contador: " + to_texto(contador));
     contador = contador + 1;
 romper''',
         
         "Do-While (creeper)": '''bloques intentos = 0;
 creeper:
-    letrero "Intento número: " + intentos;
+    letrero("Intento número: " + to_texto(intentos));
     intentos = intentos + 1;
 boom (intentos < 3);''',
         
         "For (cultivar)": '''cultivar (i = 0; i < 10; i = i + 1):
-    letrero "Iteración: " + i;
+    letrero("Iteración: " + to_texto(i));
 cosechar''',
         
         "Switch (portal)": '''texto comando = "saltar";
 portal (comando):
     caso "saltar":
-        letrero "Saltando...";
+        letrero("Saltando...");
     caso "correr":
-        letrero "Corriendo...";
+        letrero("Corriendo...");
     caso "atacar":
-        letrero "Atacando...";
+        letrero("Atacando...");
     defecto:
-        letrero "Comando desconocido";
+        letrero("Comando desconocido");
 salir_portal''',
         
         "Break en loop": '''bloques i = 0;
 spawner (i < 100):
     observador (i == 5):
-        letrero "Saliendo en 5";
+        letrero("Saliendo en 5");
         romper();
     fin
-    letrero i;
+    letrero(to_texto(i));
     i = i + 1;
 romper''',
         
@@ -95,7 +98,7 @@ romper''',
     observador (j == 5):
         continuar();
     fin
-    letrero "Número: " + j;
+    letrero("Número: " + to_texto(j));
 cosechar''',
     },
     
@@ -106,7 +109,7 @@ cosechar''',
 fin''',
         
         "Función sin retorno (vacío)": '''mesa_crafteo vacío saludar(texto nombre):
-    letrero "Hola, " + nombre + "!";
+    letrero("Hola, " + nombre + "!");
 fin''',
         
         "Función con múltiples parámetros": '''mesa_crafteo coordenada calcularPromedio(coordenada a, coordenada b, coordenada c):
@@ -121,26 +124,20 @@ fin''',
     fin
     craftear n * factorial(n - 1);
 fin''',
-        
-        "Main básico": '''mesa_crafteo vacío main():
-    letrero "Programa iniciado";
-    # Tu código aquí
-    letrero "Programa terminado";
-fin''',
     },
     
     "Casting": {
         "Conversión a entero": '''texto entrada = cofre();
 bloques numero = to_bloques(entrada);
-letrero "Número ingresado: " + numero;''',
+letrero("Número ingresado: " + to_texto(numero));''',
         
         "Conversión a flotante": '''texto valor = "3.14";
 coordenada pi = to_coordenada(valor);
-letrero "Pi aproximado: " + pi;''',
+letrero("Pi aproximado: " + to_texto(pi));''',
         
         "Conversión a texto": '''bloques edad = 25;
 texto mensaje = "Tienes " + to_texto(edad) + " años";
-letrero mensaje;''',
+letrero(mensaje);''',
     },
     
     "Ejemplos": {
