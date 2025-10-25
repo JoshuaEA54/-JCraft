@@ -1,0 +1,26 @@
+# Test de loops (for, while, do-while)
+mesa_crafteo vacío main():
+    letrero("=== Test: Loops ===");
+    
+    letrero("--- Test FOR ---");
+    bloques i = 0;
+    cultivar (i = 1; i <= 3; i = i + 1):
+        letrero("FOR: " + to_texto(i));
+    cosechar
+    
+    letrero("--- Test WHILE ---");
+    bloques j = 1;
+    spawner (j <= 3):
+        letrero("WHILE: " + to_texto(j));
+        j = j + 1;
+    romper
+    
+    letrero("--- Test DO-WHILE ---");
+    bloques k = 1;
+    creeper:
+        letrero("DO-WHILE: " + to_texto(k));
+        k = k + 1;
+    boom (k <= 3);
+    
+    letrero("✓ Test completado");
+fin
