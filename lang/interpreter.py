@@ -434,13 +434,22 @@ class Interpreter:
         raise InterpreterError(f'Cannot evaluate expression of type {type(expr)}')
 
 
-def run_source(source: str, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False):
+def run_source(source: str, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, type_check: bool = True):
     from .lexer import tokenize
     from .parser import Parser
+    from .type_checker import TypeChecker
 
     toks = tokenize(source)
     p = Parser(toks)
     prog = p.parse()
+    
+    # Verificación de tipos estática (si está habilitada)
+    if type_check:
+        checker = TypeChecker()
+        if not checker.check(prog):
+            checker.print_errors()
+            raise InterpreterError(f"Type check failed with {len(checker.errors)} error(s)")
+    
     interp = Interpreter(input_callback=input_callback, debug=debug)
     results = interp.run(prog)
     return results
