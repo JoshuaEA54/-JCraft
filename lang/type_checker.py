@@ -371,6 +371,13 @@ class TypeChecker:
             elif isinstance(val, float):
                 return TypeInfo('coordenada')
             elif isinstance(val, str):
+                # Usar literal_type para distinguir STRING ("...") de CHAR ('...')
+                if hasattr(expr, 'literal_type'):
+                    if expr.literal_type == 'CHAR':
+                        return TypeInfo('glifo')
+                    elif expr.literal_type == 'STRING':
+                        return TypeInfo('texto')
+                # Fallback: si no tiene literal_type, usar longitud (legacy)
                 if len(val) == 1:
                     return TypeInfo('glifo')
                 return TypeInfo('texto')
