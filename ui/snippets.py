@@ -167,64 +167,65 @@ mesa_crafteo bloques restar(bloques a, bloques b):
 fin
 
 mesa_crafteo vacío main():
-    letrero "=== Calculadora Simple ===";
+    letrero("=== Calculadora Simple ===");
     
-    letrero "Ingresa el primer número:";
+    letrero("Ingresa el primer número:");
     texto entrada1 = cofre();
     bloques num1 = to_bloques(entrada1);
     
-    letrero "Ingresa el segundo número:";
+    letrero("Ingresa el segundo número:");
     texto entrada2 = cofre();
     bloques num2 = to_bloques(entrada2);
     
     bloques suma = sumar(num1, num2);
     bloques resta = restar(num1, num2);
     
-    letrero "Suma: " + suma;
-    letrero "Resta: " + resta;
+    letrero("Suma: " + to_texto(suma));
+    letrero("Resta: " + to_texto(resta));
 fin''',
         
         "Programa completo: Contador con loops": '''mesa_crafteo vacío main():
-    letrero "=== Contador ===";
+    letrero("=== Contador ===");
     
     bloques limite = 5;
     bloques i = 1;
     
-    letrero "Contando con while:";
+    letrero("Contando con while:");
     spawner (i <= limite):
-        letrero "Número: " + i;
+        letrero("Número: " + to_texto(i));
         i = i + 1;
     romper
     
-    letrero "Contando con for:";
+    letrero("Contando con for:");
+    bloques j = 0;
     cultivar (j = 1; j <= limite; j = j + 1):
-        letrero "Número: " + j;
+        letrero("Número: " + to_texto(j));
     cosechar
     
-    letrero "Fin del programa";
+    letrero("Fin del programa");
 fin''',
         
         "Programa completo: Sistema de menú": '''mesa_crafteo vacío main():
-    letrero "=== Menú Principal ===";
-    letrero "1. Nueva partida";
-    letrero "2. Cargar partida";
-    letrero "3. Opciones";
-    letrero "4. Salir";
+    letrero("=== Menú Principal ===");
+    letrero("1. Nueva partida");
+    letrero("2. Cargar partida");
+    letrero("3. Opciones");
+    letrero("4. Salir");
     
-    letrero "Elige una opción:";
+    letrero("Elige una opción:");
     texto entrada = cofre();
     
     portal (entrada):
         caso "1":
-            letrero "Iniciando nueva partida...";
+            letrero("Iniciando nueva partida...");
         caso "2":
-            letrero "Cargando partida...";
+            letrero("Cargando partida...");
         caso "3":
-            letrero "Abriendo opciones...";
+            letrero("Abriendo opciones...");
         caso "4":
-            letrero "Saliendo del juego...";
+            letrero("Saliendo del juego...");
         defecto:
-            letrero "Opción no válida";
+            letrero("Opción no válida");
     salir_portal
 fin''',
         
@@ -236,35 +237,36 @@ fin''',
 fin
 
 mesa_crafteo vacío main():
-    letrero "Ingresa un número:";
+    letrero("Ingresa un número:");
     texto entrada = cofre();
     bloques numero = to_bloques(entrada);
     
     redstone positivo = esPositivo(numero);
     
     observador (positivo):
-        letrero "El número es positivo";
+        letrero("El número es positivo");
     dispensador:
-        letrero "El número es cero o negativo";
+        letrero("El número es cero o negativo");
     fin
 fin''',
         
         "Programa completo: Búsqueda en rango": '''mesa_crafteo vacío main():
-    letrero "=== Buscar número par ===";
+    letrero("=== Buscar número par ===");
     
     bloques inicio = 1;
     bloques fin_busqueda = 20;
+    bloques i = 0;
     
     cultivar (i = inicio; i <= fin_busqueda; i = i + 1):
         bloques residuo = i % 2;
         
         observador (residuo == 0):
-            letrero "Primer número par encontrado: " + i;
+            letrero("Primer número par encontrado: " + to_texto(i));
             romper();
         fin
     cosechar
     
-    letrero "Búsqueda completada";
+    letrero("Búsqueda completada");
 fin''',
     },
 }
