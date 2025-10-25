@@ -59,6 +59,13 @@ class MainWindow(QMainWindow):
         self.editor_panel = EditorPanel(splitter)
         self.output_panel = OutputPanel(splitter)
 
+        # Inicializar con la estructura básica de main
+        template_inicial = """mesa_crafteo vacío main():
+    
+fin
+"""
+        self.editor_panel.set_text(template_inicial)
+
         if self.pixel_family:
             self.editor_panel.set_pixel_family(self.pixel_family)
             self.editor_panel.toggle_pixel_font(True)
@@ -118,7 +125,12 @@ class MainWindow(QMainWindow):
         self.output_panel.btn_run.setShortcut("Ctrl+Return")
 
     def _on_new(self):
-        self.editor_panel.set_text("")
+        """Crear nuevo archivo con estructura básica de main"""
+        template = """mesa_crafteo vacío main():
+    
+fin
+"""
+        self.editor_panel.set_text(template)
         self.output_panel.clear()
 
     def _wire_stubs(self):
@@ -233,24 +245,59 @@ class MainWindow(QMainWindow):
             parent_menu.addMenu(category_menu)
     
     def _insert_snippet(self, category: str, snippet_name: str):
-        """Inserta un snippet en el editor"""
+        """Inserta un snippet en el editor, automáticamente dentro del main si existe"""
         from .snippets import get_snippet
         
         code = get_snippet(category, snippet_name)
-        if code:
-            # Insertar el código en el editor
-            current_text = self.editor_panel.text()
+        if not code:
+            return
             
-            # Si hay texto, agregar dos líneas en blanco antes del snippet
-            if current_text.strip():
-                new_text = current_text + "\n\n" + code
+        current_text = self.editor_panel.text()
+        
+        # Si el snippet es para definir función (va ANTES de main)
+        if "ANTES de main" in code or "mesa_crafteo" in code:
+            # Insertar antes del main
+            if "mesa_crafteo vacío main():" in current_text:
+                # Buscar la posición del main
+                main_pos = current_text.find("mesa_crafteo vacío main():")
+                new_text = current_text[:main_pos] + code + "\n\n" + current_text[main_pos:]
             else:
-                new_text = code
-            
-            self.editor_panel.set_text(new_text)
-            
-            # Mostrar mensaje en la barra de estado
-            self.statusBar().showMessage(f"Snippet insertado: {snippet_name}", 3000)
+                # No hay main, insertar al final
+                new_text = current_text + "\n\n" + code
+        else:
+            # Es código normal, insertarlo DENTRO del main
+            if "mesa_crafteo vacío main():" in current_text and "fin" in current_text:
+                # Buscar la línea después de "mesa_crafteo vacío main():"
+                lines = current_text.split('\n')
+                new_lines = []
+                dentro_main = False
+                insertado = False
+                
+                for i, line in enumerate(lines):
+                    new_lines.append(line)
+                    
+                    # Si encontramos el main y aún no hemos insertado
+                    if "mesa_crafteo vacío main():" in line and not insertado:
+                        dentro_main = True
+                        # Insertar el código después del main, con indentación
+                        snippet_lines = code.split('\n')
+                        for snippet_line in snippet_lines:
+                            if snippet_line.strip():  # Si la línea no está vacía
+                                new_lines.append("    " + snippet_line)
+                            else:
+                                new_lines.append(snippet_line)
+                        insertado = True
+                
+                new_text = '\n'.join(new_lines)
+            else:
+                # No hay estructura de main válida, insertar normalmente
+                if current_text.strip():
+                    new_text = current_text + "\n\n" + code
+                else:
+                    new_text = code
+        
+        self.editor_panel.set_text(new_text)
+        self.statusBar().showMessage(f"Snippet insertado: {snippet_name}", 3000)
 
     def run(self):
         self.show()
