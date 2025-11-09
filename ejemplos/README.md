@@ -68,7 +68,7 @@ Cada ejemplo demuestra al menos una característica clave:
 - ✅ Funciones con retorno y sin retorno
 - ✅ Estructuras de control (if, while, for)
 - ✅ Operaciones con colecciones (listas y mapas)
-- ✅ Entrada/salida con `letrero()` y `cofre()`
+- ✅ Entrada/salida con `letrero()` y `cofre("Que ingresar aquí")`
 - ✅ Conversiones de tipo
 - ✅ Recursividad
 

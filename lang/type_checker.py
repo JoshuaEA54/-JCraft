@@ -72,8 +72,8 @@ class TypeChecker:
     
     def _init_builtins(self):
         """Inicializa funciones built-in"""
-        # cofre() : texto
-        self.functions['cofre'] = (TypeInfo('texto'), [])
+        # cofre(texto) : texto - requires prompt parameter
+        self.functions['cofre'] = (TypeInfo('texto'), [TypeInfo('texto')])
         
         # letrero(expr) : vacío
         self.functions['letrero'] = (TypeInfo('vacío'), [TypeInfo('texto')])  # Acepta cualquier cosa
