@@ -1,14 +1,13 @@
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QPlainTextEdit, QWidget
-from PySide6.QtGui import QFont, QPainter, QColor, QTextFormat
+from PySide6.QtGui import QFont, QPainter, QColor
 from PySide6.QtCore import Qt, QRect, QSize
 
-
 class LineNumberArea(QWidget):
-    """Widget para mostrar los números de línea"""
+    """Widget to display line numbers"""
     def __init__(self, editor):
         super().__init__(editor)
         self.editor = editor
-        # Hacer el widget transparente
+        # Make the widget transparent
         self.setAttribute(Qt.WA_TranslucentBackground)
 
     def sizeHint(self):
@@ -19,19 +18,19 @@ class LineNumberArea(QWidget):
 
 
 class JCraftTextEdit(QPlainTextEdit):
-    """QPlainTextEdit extendido con números de línea"""
+    """QPlainTextEdit extended with line numbers"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.line_number_area = LineNumberArea(self)
         
-        # Conectar señales para actualizar números de línea
+        # Connect signals to update line numbers
         self.blockCountChanged.connect(self.update_line_number_area_width)
         self.updateRequest.connect(self.update_line_number_area)
         
         self.update_line_number_area_width(0)
 
     def line_number_area_width(self):
-        """Calcula el ancho necesario para el área de números de línea"""
+        """Calculate the width needed for the line number area"""
         digits = 1
         max_num = max(1, self.blockCount())
         while max_num >= 10:
@@ -42,11 +41,11 @@ class JCraftTextEdit(QPlainTextEdit):
         return space
 
     def update_line_number_area_width(self, _):
-        """Actualiza el margen izquierdo para el área de números de línea"""
+        """Update the left margin for the line number area"""
         self.setViewportMargins(self.line_number_area_width(), 0, 0, 0)
 
     def update_line_number_area(self, rect, dy):
-        """Actualiza el área de números de línea cuando el contenido cambia"""
+        """Update the line number area when the content changes"""
         if dy:
             self.line_number_area.scroll(0, dy)
         else:
@@ -56,16 +55,16 @@ class JCraftTextEdit(QPlainTextEdit):
             self.update_line_number_area_width(0)
 
     def resizeEvent(self, event):
-        """Ajusta el tamaño del área de números de línea cuando se redimensiona el editor"""
+        """Adjust the size of the line number area when the editor is resized"""
         super().resizeEvent(event)
         cr = self.contentsRect()
         self.line_number_area.setGeometry(QRect(cr.left(), cr.top(), 
                                                  self.line_number_area_width(), cr.height()))
 
     def line_number_area_paint_event(self, event):
-        """Dibuja los números de línea"""
+        """Draw the line numbers"""
         painter = QPainter(self.line_number_area)
-        # Fondo transparente para que se vea el fondo del Card
+        # Transparent background to show the Card background
         painter.fillRect(event.rect(), Qt.transparent)
 
         block = self.firstVisibleBlock()
@@ -73,9 +72,9 @@ class JCraftTextEdit(QPlainTextEdit):
         top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
         bottom = top + self.blockBoundingRect(block).height()
 
-        # Usar la misma fuente que el editor
+        # Use the same font as the editor
         painter.setFont(self.font())
-        # Color blanco (#E8EEF2) consistente con el resto del UI
+        # White color (#E8EEF2) consistent with the rest of the UI
         painter.setPen(QColor(232, 238, 242))
 
         while block.isValid() and top <= event.rect().bottom():
@@ -107,7 +106,7 @@ class EditorPanel(QFrame):
         layout.setSpacing(10)
 
         self.editor = JCraftTextEdit(self)
-        # Sin placeholder - el texto inicial se establece en main_window
+        # No placeholder - initial text is set in main_window
         layout.addWidget(self.editor)
         self.apply_font()
 
