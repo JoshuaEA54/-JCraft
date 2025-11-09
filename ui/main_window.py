@@ -10,6 +10,7 @@ from .editor_panel import EditorPanel
 from .output_panel import OutputPanel
 from .fonts import load_pixel_font_family
 from .snippets import get_snippet_menu_structure
+from .chest_dialog import show_chest_dialog
 
 # language tooling
 from lang.lexer import tokenize
@@ -163,38 +164,15 @@ fin
         self.output_panel.append("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
         
-        # Callback para cofre() que muestra primero el prompt en OUTPUT y luego el diálogo
+        # Callback for cofre() that shows the Minecraft chest dialog
         def input_callback(prompt: str) -> str:
-            # Mostrar el prompt en la consola de salida
-            self.output_panel.append(prompt)
+            # Show the prompt in the output console
+            if prompt:
+                self.output_panel.append(prompt)
             
-            # Crear diálogo con estilo para que todo sea visible (texto negro, botones negros)
-            dialog = QInputDialog(self)
-            dialog.setWindowTitle("Entrada - cofre()")
-            dialog.setLabelText(prompt)
-            dialog.setStyleSheet("""
-                QLabel { 
-                    color: black; 
-                }
-                QLineEdit { 
-                    color: black; 
-                    background-color: white; 
-                }
-                QPushButton { 
-                    color: black; 
-                    background-color: #e0e0e0;
-                    border: 1px solid #999;
-                    padding: 5px 15px;
-                }
-                QPushButton:hover {
-                    background-color: #d0d0d0;
-                }
-            """)
-            
-            if dialog.exec():
-                text = dialog.textValue()
-                return text
-            return ""  # si cancela, devuelve vacío
+            # Show the Minecraft-style chest dialog
+            text = show_chest_dialog(prompt, self)
+            return text
         
         try:
             results = run_source(src, input_callback=input_callback, debug=False)

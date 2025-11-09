@@ -89,11 +89,11 @@ class Interpreter:
                 self.debug_print('letrero ->', val)
                 return None
             if stmt.callee == 'cofre':
-                # cofre() returns texto from input callback
-                prompt = ''
-                if len(stmt.args) == 1:
-                    prompt_val = self.evaluate(stmt.args[0])
-                    prompt = str(prompt_val)
+                # cofre(prompt) returns texto from input callback
+                if len(stmt.args) != 1:
+                    raise InterpreterError('cofre expects exactly 1 argument (prompt text)')
+                prompt_val = self.evaluate(stmt.args[0])
+                prompt = str(prompt_val)
                 value = self.input_callback(prompt)
                 return value
             if stmt.callee == 'push':
@@ -355,10 +355,10 @@ class Interpreter:
             
             # === Otras funciones nativas ===
             if callee == 'cofre':
-                prompt = ''
-                if len(expr.args) == 1:
-                    prompt_val = self.evaluate(expr.args[0])
-                    prompt = str(prompt_val)
+                if len(expr.args) != 1:
+                    raise InterpreterError('cofre expects exactly 1 argument (prompt text)')
+                prompt_val = self.evaluate(expr.args[0])
+                prompt = str(prompt_val)
                 value = self.input_callback(prompt)
                 return value
             if callee == 'length':
