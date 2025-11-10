@@ -1,9 +1,9 @@
 """
-Type Checker para JCraft
-Valida tipos estáticamente antes de la ejecución
+Type Checker for JCraft
+Validates types statically before execution
 """
 
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from .parser import (
     Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt,
@@ -14,15 +14,15 @@ from .parser import (
 
 
 class TypeCheckError(Exception):
-    """Error de validación de tipos"""
+    """Type validation error"""
     pass
 
 
 @dataclass
 class TypeInfo:
-    """Información de tipo para una expresión"""
+    """Type information for an expression"""
     base_type: str  # 'bloques', 'texto', 'inventario', 'mapa', etc.
-    generic_params: List[str] = None  # Para inventario<T> o mapa<K,V>
+    generic_params: List[str] = None  # For inventario<T> or mapa<K,V>
     
     def __post_init__(self):
         if self.generic_params is None:
@@ -40,57 +40,57 @@ class TypeInfo:
                 self.generic_params == other.generic_params)
     
     def is_numeric(self):
-        """Verifica si es tipo numérico"""
+        """Check if type is numeric"""
         return self.base_type in ('bloques', 'coordenada')
     
     def is_comparable(self):
-        """Verifica si se puede usar en comparaciones"""
+        """Check if type can be used in comparisons"""
         return self.base_type in ('bloques', 'coordenada', 'texto', 'glifo')
     
     def is_collection(self):
-        """Verifica si es colección"""
+        """Check if type is a collection"""
         return self.base_type in ('inventario', 'mapa')
 
 
 class TypeChecker:
-    """Validador de tipos estático para JCraft"""
+    """Static type validator for JCraft"""
     
     def __init__(self):
-        # Tabla de símbolos: nombre -> TypeInfo
+        # Symbol table: name -> TypeInfo
         self.variables: Dict[str, TypeInfo] = {}
-        # Funciones: nombre -> (return_type, [param_types])
+        # Functions: name -> (return_type, [param_types])
         self.functions: Dict[str, tuple] = {}
-        # Contexto de función actual (para validar return)
+        # Current function context (to validate return)
         self.current_function_return_type: Optional[TypeInfo] = None
-        # Stack de scopes para variables locales
+        # Scope stack for local variables
         self.scope_stack: List[Dict[str, TypeInfo]] = [{}]
-        # Contador de errores
+        # Error counter
         self.errors: List[str] = []
         
-        # Funciones built-in
+        # Built-in functions
         self._init_builtins()
     
     def _init_builtins(self):
-        """Inicializa funciones built-in"""
+        """Initialize built-in functions"""
         # cofre(texto) : texto - requires prompt parameter
         self.functions['cofre'] = (TypeInfo('texto'), [TypeInfo('texto')])
         
         # letrero(expr) : vacío
-        self.functions['letrero'] = (TypeInfo('vacío'), [TypeInfo('texto')])  # Acepta cualquier cosa
+        self.functions['letrero'] = (TypeInfo('vacío'), [TypeInfo('texto')])  # Accepts anything
         
-        # length(colección) : bloques
-        self.functions['length'] = (TypeInfo('bloques'), [None])  # Acepta colecciones
+        # length(collection) : bloques
+        self.functions['length'] = (TypeInfo('bloques'), [None])  # Accepts collections
         
         # push(inventario<T>, T) : vacío
         self.functions['push'] = (TypeInfo('vacío'), [None, None])
         
         # pop(inventario<T>) : T
-        self.functions['pop'] = (None, [None])  # Tipo de retorno depende del argumento
+        self.functions['pop'] = (None, [None])  # Return type depends on argument
         
         # tiene(mapa<K,V>, K) : redstone
         self.functions['tiene'] = (TypeInfo('redstone'), [None, None])
         
-        # Conversiones
+        # Conversions
         self.functions['to_bloques'] = (TypeInfo('bloques'), [None])
         self.functions['to_coordenada'] = (TypeInfo('coordenada'), [None])
         self.functions['to_texto'] = (TypeInfo('texto'), [None])
@@ -98,39 +98,39 @@ class TypeChecker:
         self.functions['to_glifo'] = (TypeInfo('glifo'), [None])
     
     def error(self, message: str):
-        """Registra un error de tipo"""
+        """Register a type error"""
         self.errors.append(message)
     
     def push_scope(self):
-        """Crea un nuevo scope para variables locales"""
+        """Create a new scope for local variables"""
         self.scope_stack.append({})
     
     def pop_scope(self):
-        """Sale del scope actual"""
+        """Exit current scope"""
         if len(self.scope_stack) > 1:
             self.scope_stack.pop()
     
     def declare_variable(self, name: str, type_info: TypeInfo):
-        """Declara una variable en el scope actual"""
+        """Declare a variable in current scope"""
         current_scope = self.scope_stack[-1]
         if name in current_scope:
-            self.error(f"Variable '{name}' ya declarada en este scope")
+            self.error(f"Variable '{name}' already declared in this scope")
         current_scope[name] = type_info
-        # También en tabla global para fácil acceso
+        # Also in global table for easy access
         self.variables[name] = type_info
     
     def get_variable_type(self, name: str) -> Optional[TypeInfo]:
-        """Obtiene el tipo de una variable"""
-        # Busca desde el scope más interno al más externo
+        """Get the type of a variable"""
+        # Search from innermost to outermost scope
         for scope in reversed(self.scope_stack):
             if name in scope:
                 return scope[name]
         return None
     
     def parse_type_annotation(self, type_str: str) -> TypeInfo:
-        """Parsea una anotación de tipo como 'inventario<bloques>' o 'mapa<texto,bloques>'"""
+        """Parse a type annotation like 'inventario<bloques>' or 'mapa<texto,bloques>'"""
         if '<' in type_str:
-            # Tipo genérico
+            # Generic type
             base = type_str[:type_str.index('<')]
             params_str = type_str[type_str.index('<')+1:type_str.rindex('>')]
             params = [p.strip() for p in params_str.split(',')]
@@ -140,20 +140,20 @@ class TypeChecker:
     
     def check(self, program: Program) -> bool:
         """
-        Verifica tipos del programa completo.
-        Retorna True si no hay errores, False si hay errores.
+        Check types of the entire program.
+        Returns True if no errors, False if there are errors.
         """
         self.errors = []
         
-        # Primera pasada: recolectar declaraciones de funciones
+        # First pass: collect function declarations
         main_count = 0
         for decl in program.declarations:
             if isinstance(decl, FunctionDecl):
-                # Verificar que no haya funciones duplicadas
+                # Check for duplicate functions
                 if decl.name in self.functions:
-                    self.error(f"Función '{decl.name}' declarada múltiples veces")
+                    self.error(f"Function '{decl.name}' declared multiple times")
                 
-                # Contar mains
+                # Count mains
                 if decl.name == 'main':
                     main_count += 1
                 
@@ -161,60 +161,60 @@ class TypeChecker:
                 return_type = self.parse_type_annotation(decl.return_type)
                 self.functions[decl.name] = (return_type, param_types)
         
-        # Verificar que main es único
+        # Verify main is unique
         if main_count == 0:
-            self.error("Función 'main' no encontrada (obligatoria y debe ser única)")
+            self.error("Function 'main' not found (required and must be unique)")
         elif main_count > 1:
-            self.error(f"Función 'main' declarada {main_count} veces (debe ser única)")
+            self.error(f"Function 'main' declared {main_count} times (must be unique)")
         
-        # Segunda pasada: verificar cuerpos de funciones y variables globales
+        # Second pass: check function bodies and global variables
         for decl in program.declarations:
             if isinstance(decl, FunctionDecl):
                 self.check_function(decl)
             elif isinstance(decl, VarDecl):
                 self.check_var_decl(decl)
         
-        # Verificar firma de main (si existe)
+        # Verify main signature (if exists)
         if 'main' in self.functions:
             return_type, param_types = self.functions['main']
             if return_type.base_type != 'vacío':
-                self.error(f"main debe retornar 'vacío', no '{return_type}'")
+                self.error(f"main must return 'vacío', not '{return_type}'")
             if len(param_types) > 0:
-                self.error(f"main no debe tener parámetros (tiene {len(param_types)})")
+                self.error(f"main must not have parameters (has {len(param_types)})")
         
         return len(self.errors) == 0
     
     def check_function(self, func: FunctionDecl):
-        """Verifica el cuerpo de una función"""
-        # Nuevo scope para parámetros y variables locales
+        """Check function body"""
+        # New scope for parameters and local variables
         self.push_scope()
         
-        # Guardar tipo de retorno esperado
+        # Save expected return type
         old_return_type = self.current_function_return_type
         self.current_function_return_type = self.parse_type_annotation(func.return_type)
         
-        # Declarar parámetros
+        # Declare parameters
         for ptype, pname in func.params:
             param_type = self.parse_type_annotation(ptype)
             self.declare_variable(pname, param_type)
         
-        # Verificar cuerpo
+        # Check body
         has_return = False
         for stmt in func.body:
             self.check_statement(stmt)
             if isinstance(stmt, ReturnStmt):
                 has_return = True
         
-        # Verificar que funciones no-void retornan
+        # Verify non-void functions return
         if self.current_function_return_type.base_type != 'vacío' and not has_return:
-            self.error(f"Función '{func.name}' debe retornar un valor de tipo '{self.current_function_return_type}'")
+            self.error(f"Function '{func.name}' must return a value of type '{self.current_function_return_type}'")
         
-        # Restaurar
+        # Restore
         self.current_function_return_type = old_return_type
         self.pop_scope()
     
     def check_var_decl(self, var: VarDecl):
-        """Verifica declaración de variable"""
+        """Check variable declaration"""
         declared_type = self.parse_type_annotation(var.var_type)
         expr_type = self.infer_type(var.value)
         
@@ -225,7 +225,7 @@ class TypeChecker:
         self.declare_variable(var.name, declared_type)
     
     def check_statement(self, stmt: ASTNode):
-        """Verifica un statement"""
+        """Check a statement"""
         if isinstance(stmt, VarDecl):
             self.check_var_decl(stmt)
         
@@ -244,38 +244,38 @@ class TypeChecker:
             self.check_index_assign(stmt)
         
         elif isinstance(stmt, PrintStmt):
-            # letrero acepta cualquier cosa (convierte a texto)
+            # letrero accepts anything (converts to text)
             self.infer_type(stmt.expr)
         
         elif isinstance(stmt, ReturnStmt):
             if not self.current_function_return_type:
-                self.error("'craftear' fuera de una función")
+                self.error("'craftear' outside of a function")
                 return
             
             if stmt.expr is None:
                 if self.current_function_return_type.base_type != 'vacío':
-                    self.error(f"Se esperaba retornar '{self.current_function_return_type}', "
-                              f"pero no se retorna valor")
+                    self.error(f"Expected to return '{self.current_function_return_type}', "
+                              f"but no value returned")
             else:
                 expr_type = self.infer_type(stmt.expr)
                 if expr_type and not self.types_compatible(self.current_function_return_type, expr_type):
-                    self.error(f"Tipo de retorno '{expr_type}' incompatible con "
-                              f"tipo declarado '{self.current_function_return_type}'")
+                    self.error(f"Return type '{expr_type}' incompatible with "
+                              f"declared type '{self.current_function_return_type}'")
         
         elif isinstance(stmt, IfStmt):
             for cond, body in stmt.branches:
-                if cond is not None:  # No es 'dispensador' (else)
+                if cond is not None:  # Not 'dispensador' (else)
                     cond_type = self.infer_type(cond)
                     if cond_type and cond_type.base_type != 'redstone':
-                        self.error(f"Condición de 'observador/comparador' debe ser 'redstone', "
-                                  f"no '{cond_type}'")
+                        self.error(f"Condition in 'observador/comparador' must be 'redstone', "
+                                  f"not '{cond_type}'")
                 for s in body:
                     self.check_statement(s)
         
         elif isinstance(stmt, WhileStmt):
             cond_type = self.infer_type(stmt.condition)
             if cond_type and cond_type.base_type != 'redstone':
-                self.error(f"Condición de 'spawner' debe ser 'redstone', no '{cond_type}'")
+                self.error(f"Condition in 'spawner' must be 'redstone', not '{cond_type}'")
             for s in stmt.body:
                 self.check_statement(s)
         
@@ -284,7 +284,7 @@ class TypeChecker:
                 self.check_statement(s)
             cond_type = self.infer_type(stmt.condition)
             if cond_type and cond_type.base_type != 'redstone':
-                self.error(f"Condición de 'boom' debe ser 'redstone', no '{cond_type}'")
+                self.error(f"Condition in 'boom' must be 'redstone', not '{cond_type}'")
         
         elif isinstance(stmt, ForStmt):
             self.push_scope()
@@ -293,7 +293,7 @@ class TypeChecker:
             if stmt.condition:
                 cond_type = self.infer_type(stmt.condition)
                 if cond_type and cond_type.base_type != 'redstone':
-                    self.error(f"Condición de 'cultivar' debe ser 'redstone', no '{cond_type}'")
+                    self.error(f"Condition in 'cultivar' must be 'redstone', not '{cond_type}'")
             if stmt.step:
                 self.infer_type(stmt.step)
             for s in stmt.body:
@@ -303,22 +303,22 @@ class TypeChecker:
         elif isinstance(stmt, SwitchStmt):
             switch_type = self.infer_type(stmt.expr)
             for case_val, case_body in stmt.cases:
-                if case_val is not None:  # No es 'defecto'
+                if case_val is not None:  # Not 'defecto'
                     case_type = self.infer_type(case_val)
                     if switch_type and case_type and not self.types_compatible(switch_type, case_type):
-                        self.error(f"Tipo de caso '{case_type}' incompatible con "
-                                  f"expresión de switch '{switch_type}'")
+                        self.error(f"Case type '{case_type}' incompatible with "
+                                  f"switch expression '{switch_type}'")
                 for s in case_body:
                     self.check_statement(s)
         
         elif isinstance(stmt, Call):
-            self.infer_type(stmt)  # Las llamadas también pueden ser statements
+            self.infer_type(stmt)  # Calls can also be statements
         
         elif isinstance(stmt, (BreakStmt, ContinueStmt)):
-            pass  # No requieren validación de tipos
+            pass  # Don't require type validation
     
     def check_index_assign(self, stmt: IndexAssign):
-        """Verifica asignación a índice: xs[i] = valor"""
+        """Check index assignment: xs[i] = value"""
         if isinstance(stmt.target, VarRef):
             target_type = self.get_variable_type(stmt.target.name)
             if not target_type:
@@ -326,39 +326,39 @@ class TypeChecker:
                 return
             
             if target_type.base_type == 'inventario':
-                # Verificar que el índice sea bloques
+                # Check that index is bloques
                 index_type = self.infer_type(stmt.index)
                 if index_type and index_type.base_type != 'bloques':
-                    self.error(f"Índice de inventario debe ser 'bloques', no '{index_type}'")
+                    self.error(f"Inventario index must be 'bloques', not '{index_type}'")
                 
-                # Verificar que el valor sea del tipo correcto
+                # Check that value is of correct type
                 if target_type.generic_params:
                     expected_type = TypeInfo(target_type.generic_params[0])
                     value_type = self.infer_type(stmt.value)
                     if value_type and not self.types_compatible(expected_type, value_type):
-                        self.error(f"Tipo de valor '{value_type}' incompatible con "
-                                  f"tipo de inventario '{expected_type}'")
+                        self.error(f"Value type '{value_type}' incompatible with "
+                                  f"inventario type '{expected_type}'")
             
             elif target_type.base_type == 'mapa':
-                # Verificar que la clave sea del tipo correcto
+                # Check that key is of correct type
                 if target_type.generic_params:
                     key_type_expected = TypeInfo(target_type.generic_params[0])
                     key_type = self.infer_type(stmt.index)
                     if key_type and not self.types_compatible(key_type_expected, key_type):
-                        self.error(f"Tipo de clave '{key_type}' incompatible con "
-                                  f"tipo de mapa '{key_type_expected}'")
+                        self.error(f"Key type '{key_type}' incompatible with "
+                                  f"mapa type '{key_type_expected}'")
                     
-                    # Verificar que el valor sea del tipo correcto
+                    # Check that value is of correct type
                     value_type_expected = TypeInfo(target_type.generic_params[1])
                     value_type = self.infer_type(stmt.value)
                     if value_type and not self.types_compatible(value_type_expected, value_type):
-                        self.error(f"Tipo de valor '{value_type}' incompatible con "
-                                  f"tipo de mapa '{value_type_expected}'")
+                        self.error(f"Value type '{value_type}' incompatible with "
+                                  f"mapa type '{value_type_expected}'")
             else:
-                self.error(f"No se puede indexar tipo '{target_type}'")
+                self.error(f"Cannot index type '{target_type}'")
     
     def infer_type(self, expr: Any) -> Optional[TypeInfo]:
-        """Infiere el tipo de una expresión"""
+        """Infer the type of an expression"""
         if expr is None:
             return None
         
@@ -371,13 +371,13 @@ class TypeChecker:
             elif isinstance(val, float):
                 return TypeInfo('coordenada')
             elif isinstance(val, str):
-                # Usar literal_type para distinguir STRING ("...") de CHAR ('...')
+                # Use literal_type to distinguish STRING ("...") from CHAR ('...')
                 if hasattr(expr, 'literal_type'):
                     if expr.literal_type == 'CHAR':
                         return TypeInfo('glifo')
                     elif expr.literal_type == 'STRING':
                         return TypeInfo('texto')
-                # Fallback: si no tiene literal_type, usar longitud (legacy)
+                # Fallback: if no literal_type, use length (legacy)
                 if len(val) == 1:
                     return TypeInfo('glifo')
                 return TypeInfo('texto')
@@ -412,54 +412,54 @@ class TypeChecker:
         return None
     
     def infer_binary_type(self, expr: ExprBin) -> Optional[TypeInfo]:
-        """Infiere tipo de expresión binaria"""
+        """Infer type of binary expression"""
         left_type = self.infer_type(expr.left)
         right_type = self.infer_type(expr.right)
         
         if not left_type or not right_type:
             return None
         
-        # Operadores aritméticos
+        # Arithmetic operators
         if expr.op in ('+', '-', '*', '/', '%'):
-            # Caso especial: concatenación de texto con +
+            # Special case: text concatenation with +
             if expr.op == '+' and (left_type.base_type == 'texto' or right_type.base_type == 'texto'):
                 return TypeInfo('texto')
             
-            # Operaciones numéricas
+            # Numeric operations
             if not left_type.is_numeric() or not right_type.is_numeric():
-                self.error(f"Operador '{expr.op}' requiere tipos numéricos, "
-                          f"no '{left_type}' y '{right_type}'")
+                self.error(f"Operator '{expr.op}' requires numeric types, "
+                          f"not '{left_type}' and '{right_type}'")
                 return None
             
-            # Si uno es coordenada, el resultado es coordenada
+            # If one is coordenada, result is coordenada
             if left_type.base_type == 'coordenada' or right_type.base_type == 'coordenada':
                 return TypeInfo('coordenada')
             return TypeInfo('bloques')
         
-        # Operadores relacionales
+        # Relational operators
         elif expr.op in ('==', '!='):
-            # Cualquier tipo se puede comparar por igualdad
+            # Any type can be compared for equality
             return TypeInfo('redstone')
         
         elif expr.op in ('<', '>', '<=', '>='):
             if not left_type.is_comparable() or not right_type.is_comparable():
-                self.error(f"Operador '{expr.op}' no soportado para tipos "
-                          f"'{left_type}' y '{right_type}'")
+                self.error(f"Operator '{expr.op}' not supported for types "
+                          f"'{left_type}' and '{right_type}'")
                 return None
             return TypeInfo('redstone')
         
-        # Operadores lógicos
+        # Logical operators
         elif expr.op in ('y', 'o'):
             if left_type.base_type != 'redstone' or right_type.base_type != 'redstone':
-                self.error(f"Operador '{expr.op}' requiere tipos 'redstone', "
-                          f"no '{left_type}' y '{right_type}'")
+                self.error(f"Operator '{expr.op}' requires 'redstone' types, "
+                          f"not '{left_type}' and '{right_type}'")
                 return None
             return TypeInfo('redstone')
         
         return None
     
     def infer_unary_type(self, expr: ExprUnary) -> Optional[TypeInfo]:
-        """Infiere tipo de expresión unaria"""
+        """Infer type of unary expression"""
         operand_type = self.infer_type(expr.operand)
         
         if not operand_type:
@@ -480,75 +480,75 @@ class TypeChecker:
         return None
     
     def infer_call_type(self, call: Call) -> Optional[TypeInfo]:
-        """Infiere tipo de llamada a función"""
+        """Infer type of function call"""
         if call.callee not in self.functions:
-            self.error(f"Función '{call.callee}' no declarada")
+            self.error(f"Function '{call.callee}' not declared")
             return None
         
         return_type, param_types = self.functions[call.callee]
         
-        # Verificar número de argumentos (flexible para builtins)
+        # Check number of arguments (flexible for builtins)
         if param_types and None not in param_types:
             if len(call.args) != len(param_types):
-                self.error(f"Función '{call.callee}' espera {len(param_types)} argumentos, "
-                          f"recibió {len(call.args)}")
+                self.error(f"Function '{call.callee}' expects {len(param_types)} arguments, "
+                          f"received {len(call.args)}")
         
-        # Inferir tipos de argumentos
+        # Infer argument types
         for arg in call.args:
             self.infer_type(arg)
         
         return return_type
     
     def infer_list_type(self, expr: ListLiteral) -> Optional[TypeInfo]:
-        """Infiere tipo de literal de lista"""
+        """Infer type of list literal"""
         if not expr.elements:
-            # Lista vacía - requiere contexto de tipo
-            return TypeInfo('inventario', ['?'])  # Tipo desconocido
+            # Empty list - requires type context
+            return TypeInfo('inventario', ['?'])  # Unknown type
         
-        # Inferir tipo del primer elemento
+        # Infer type of first element
         first_type = self.infer_type(expr.elements[0])
         if not first_type:
             return None
         
-        # Verificar que todos los elementos sean del mismo tipo
+        # Check that all elements are of the same type
         for elem in expr.elements[1:]:
             elem_type = self.infer_type(elem)
             if elem_type and not self.types_compatible(first_type, elem_type):
-                self.error(f"Lista con elementos de tipos inconsistentes: "
-                          f"'{first_type}' y '{elem_type}'")
+                self.error(f"List with inconsistent element types: "
+                          f"'{first_type}' and '{elem_type}'")
         
         return TypeInfo('inventario', [str(first_type)])
     
     def infer_map_type(self, expr: MapLiteral) -> Optional[TypeInfo]:
-        """Infiere tipo de literal de mapa"""
+        """Infer type of map literal"""
         if not expr.pairs:
-            # Mapa vacío - requiere contexto de tipo
+            # Empty map - requires type context
             return TypeInfo('mapa', ['?', '?'])
         
-        # Inferir tipos del primer par
+        # Infer types of first pair
         first_key_type = self.infer_type(expr.pairs[0][0])
         first_val_type = self.infer_type(expr.pairs[0][1])
         
         if not first_key_type or not first_val_type:
             return None
         
-        # Verificar consistencia
+        # Check consistency
         for key, val in expr.pairs[1:]:
             key_type = self.infer_type(key)
             val_type = self.infer_type(val)
             
             if key_type and not self.types_compatible(first_key_type, key_type):
-                self.error(f"Mapa con claves de tipos inconsistentes: "
-                          f"'{first_key_type}' y '{key_type}'")
+                self.error(f"Map with inconsistent key types: "
+                          f"'{first_key_type}' and '{key_type}'")
             
             if val_type and not self.types_compatible(first_val_type, val_type):
-                self.error(f"Mapa con valores de tipos inconsistentes: "
-                          f"'{first_val_type}' y '{val_type}'")
+                self.error(f"Map with inconsistent value types: "
+                          f"'{first_val_type}' and '{val_type}'")
         
         return TypeInfo('mapa', [str(first_key_type), str(first_val_type)])
     
     def infer_index_type(self, expr: IndexAccess) -> Optional[TypeInfo]:
-        """Infiere tipo de acceso por índice"""
+        """Infer type of index access"""
         target_type = self.infer_type(expr.target)
         
         if not target_type:
@@ -607,6 +607,17 @@ class TypeChecker:
             print("✅ No se encontraron errores de tipo")
             return
         
-        print(f"❌ Se encontraron {len(self.errors)} error(es) de tipo:\n")
+        print(f"Se encontraron {len(self.errors)} error(es) de tipo:\n")
         for i, error in enumerate(self.errors, 1):
             print(f"{i}. {error}")
+    
+    def get_formatted_errors(self):
+        """Return formatted errors as a list of strings"""
+        if not self.errors:
+            return []
+        
+        formatted = [f"Found {len(self.errors)} type error(s):\n"]
+        for i, error in enumerate(self.errors, 1):
+            formatted.append(f"{i}. {error}")
+        
+        return formatted

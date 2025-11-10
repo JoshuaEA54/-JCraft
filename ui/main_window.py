@@ -152,6 +152,14 @@ fin
             # parse
             p = Parser(toks)
             prog = p.parse()
+            
+            # Imprimir AST en consola de VSCode
+            print("\n" + "="*60)
+            print("ÁRBOL SINTÁCTICO ABSTRACTO (AST)")
+            print("="*60)
+            print(prog)
+            print("="*60 + "\n")
+            
             self.output_panel.append("\n--- AST ---")
             self.output_panel.append(repr(prog))
             self.output_panel.append("\n[OK] Compilación terminada sin errores.")
@@ -175,7 +183,8 @@ fin
             return text
         
         try:
-            results = run_source(src, input_callback=input_callback, debug=False)
+            # Habilitar print_ast=True para que imprima el AST en la consola de VSCode
+            results = run_source(src, input_callback=input_callback, debug=False, print_ast=True)
             if results:
                 for r in results:
                     self.output_panel.append(str(r))
@@ -183,7 +192,18 @@ fin
                 self.output_panel.append("(sin salida)")
             self.output_panel.append("\n[OK] Ejecución terminada.")
         except Exception as e:
-            self.output_panel.append(f"[ERROR] {type(e).__name__}: {e}")
+            # Mostrar el error completo con sus detalles
+            error_message = str(e)
+            
+            # Si es un error del type checker, viene formateado con saltos de línea
+            if "\n" in error_message:
+                self.output_panel.append("[ERROR]")
+                for line in error_message.split("\n"):
+                    if line.strip():  # Solo mostrar líneas no vacías
+                        self.output_panel.append(line)
+            else:
+                # Otros errores se muestran normalmente
+                self.output_panel.append(f"[ERROR] {type(e).__name__}: {error_message}")
 
     def _zoom_in(self):
         self.editor_panel.zoom(+1)
