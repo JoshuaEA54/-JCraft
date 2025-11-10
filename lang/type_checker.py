@@ -610,3 +610,14 @@ class TypeChecker:
         print(f"❌ Se encontraron {len(self.errors)} error(es) de tipo:\n")
         for i, error in enumerate(self.errors, 1):
             print(f"{i}. {error}")
+    
+    def get_formatted_errors(self):
+        """Retorna los errores formateados como una lista de strings"""
+        if not self.errors:
+            return []
+        
+        formatted = [f"Se encontraron {len(self.errors)} error(es) de tipo:\n"]
+        for i, error in enumerate(self.errors, 1):
+            formatted.append(f"{i}. {error}")
+        
+        return formatted
