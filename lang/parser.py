@@ -66,9 +66,9 @@ class WhileStmt(ASTNode):
 @dataclass
 class ForStmt(ASTNode):
     # cultivar (init; cond; step): ... cosechar;
-    init: Optional[Any]  # puede ser VarDecl o Assign
+    init: Optional[Any]  # can be VarDecl or Assign
     condition: Any
-    step: Optional[Any]  # expresión de incremento
+    step: Optional[Any]  # increment expression
     body: List[ASTNode]
 
 
@@ -221,7 +221,7 @@ class Parser:
             "inventario",
             "mapa",
         ):
-            var_type = self._expect_type_token()  # Esto ahora maneja genéricos
+            var_type = self._expect_type_token()  # This now handles generics
             name_tok = self.expect("IDENT")
             name = name_tok.value
             # assignment
@@ -399,7 +399,7 @@ class Parser:
         while True:
             # param type (KEYWORD)
             typ = self._expect_type_token()
-            # permitir que el nombre sea IDENT o KEYWORD (por si acaso)
+            # allow name to be IDENT or KEYWORD (just in case)
             tok = self.current()
             if not tok:
                 raise ParserError("Expected parameter name but got EOF")
@@ -445,7 +445,7 @@ class Parser:
             "inventario",
             "mapa",
         ):
-            var_type = self._expect_type_token()  # Maneja genéricos
+            var_type = self._expect_type_token()  # Handles generics
             name_tok = self.expect("IDENT")
             name = name_tok.value
             # assignment required
@@ -462,17 +462,20 @@ class Parser:
             return PrintStmt(expr)
 
         # Control flow: observador / comparador / dispensador -> multi-branch if
-        if tok.type == "KEYWORD" and tok.value in ("observador", "comparador", "dispensador"):
+        # Only 'observador' is allowed as the first branch. 'comparador' and
+        # 'dispensador' are allowed only as subsequent branches (like elif/else).
+        if tok.type == "KEYWORD" and tok.value in ("comparador", "dispensador"):
+            # comparador/dispensador without a leading observador is a syntax error
+            raise ParserError(f"'{tok.value}' without preceding 'observador' at {tok.line}:{tok.column}")
+
+        if tok.type == "KEYWORD" and tok.value == "observador":
             branches: List[tuple] = []
-            # primera rama
-            kw = tok.value
+            # first branch must be 'observador'
             self.advance()
-            cond = None
-            if kw in ("observador", "comparador"):
-                # expect '(' expr ')'
-                self.expect("LPAREN")
-                cond = self.parse_expression()
-                self.expect("RPAREN")
+            # expect '(' expr ')'
+            self.expect("LPAREN")
+            cond = self.parse_expression()
+            self.expect("RPAREN")
             # expect ':' after header
             self.expect("COLON")
 
@@ -489,7 +492,7 @@ class Parser:
                     stmts.append(stmt)
             branches.append((cond, stmts))
 
-            # subsequent branches
+            # subsequent branches (comparador / dispensador)
             while self.current() and self.current().type == 'KEYWORD' and self.current().value in ('comparador', 'dispensador'):
                 kw = self.current().value
                 self.advance()
@@ -511,6 +514,10 @@ class Parser:
                     if stmt:
                         stmts.append(stmt)
                 branches.append((cond, stmts))
+                
+                # If we just processed 'dispensador' (else), stop looking for more branches
+                if kw == 'dispensador':
+                    break
 
             # expect 'fin'
             if not (self.current() and self.current().type == 'KEYWORD' and self.current().value == 'fin'):
@@ -532,11 +539,11 @@ class Parser:
         if tok.type == "KEYWORD" and tok.value == "cultivar":
             self.advance()
             self.expect("LPAREN")
-            # init: puede ser VarDecl o Assign
+            # init: can be VarDecl or Assign
             init_tok = self.current()
             init_stmt = None
             if init_tok and init_tok.type == "KEYWORD" and init_tok.value in ("bloques", "coordenada", "texto", "redstone", "glifo", "inventario", "mapa"):
-                # VarDecl sin semicolon
+                # VarDecl without semicolon
                 var_type = init_tok.value
                 self.advance()
                 name_tok = self.expect("IDENT")
@@ -544,7 +551,7 @@ class Parser:
                 expr = self.parse_expression()
                 init_stmt = VarDecl(var_type, name_tok.value, expr)
             elif init_tok and init_tok.type == "IDENT":
-                # Assign sin semicolon
+                # Assign without semicolon
                 name = init_tok.value
                 self.advance()
                 self.expect("OP", "=")
@@ -555,11 +562,11 @@ class Parser:
             # condition
             cond = self.parse_expression()
             self.expect("SEMI")
-            # step: puede ser Assign (i = i + 1) o expresión simple (i++)
+            # step: can be Assign (i = i + 1) or simple expression (i++)
             step_tok = self.current()
             step_stmt = None
             if step_tok and step_tok.type == "IDENT":
-                # peek para ver si es asignación
+                # peek to see if it's an assignment
                 peek = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else None
                 if peek and peek.type == "OP" and peek.value == "=":
                     # Assign
@@ -569,7 +576,7 @@ class Parser:
                     expr = self.parse_expression()
                     step_stmt = Assign(name, expr)
                 else:
-                    # expresión simple
+                    # simple expression
                     step_stmt = self.parse_expression()
             else:
                 step_stmt = self.parse_expression()
@@ -819,9 +826,9 @@ class Parser:
         return self.parse_postfix()
     
     def parse_postfix(self):
-        """Parse postfix operators like indexación: xs[0], m["key"]"""
+        """Parse postfix operators like indexing: xs[0], m["key"]"""
         node = self.parse_primary()
-        # Soporte para indexación postfix
+        # Support for postfix indexing
         while self.current() and self.current().type == "LBRACK":
             self.advance()
             index_expr = self.parse_expression()
@@ -874,7 +881,7 @@ class Parser:
             self.expect("RPAREN")
             return node
         
-        # Lista literal: [1, 2, 3]
+        # List literal: [1, 2, 3]
         if tok.type == "LBRACK":
             self.advance()
             elements = []
@@ -888,7 +895,7 @@ class Parser:
             self.expect("RBRACK")
             return ListLiteral(elements)
         
-        # Mapa literal: {"clave": valor, "otra": valor2}
+        # Map literal: {"key": value, "other": value2}
         if tok.type == "LBRACE":
             self.advance()
             pairs = []
