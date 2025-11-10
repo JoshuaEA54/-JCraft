@@ -2,22 +2,6 @@ import re
 from dataclasses import dataclass
 from typing import List, Optional
 
-
-@dataclass
-class Token:
-    type: str
-    value: Optional[object]
-    line: int
-    column: int
-
-    def __repr__(self) -> str:
-        return f"Token({self.type!r}, {self.value!r}, {self.line}, {self.column})"
-
-
-class LexerError(Exception):
-    pass
-
-
 KEYWORDS = {
     'cultivar', 'cosechar', 'observador', 'comparador', 'dispensador',
     'creeper', 'boom', 'portal', 'caso', 'defecto', 'salir_portal',
@@ -27,6 +11,12 @@ KEYWORDS = {
     'fin'
 }
 
+@dataclass
+class Token:
+    type: str
+    value: Optional[object]
+    line: int
+    column: int
 
 class Lexer:
     """Regex-based lexer for :JCraft preserving line/column info."""
@@ -132,6 +122,8 @@ class Lexer:
 
         return tokens
 
+class LexerError(Exception):
+    pass
 
 def tokenize(source: str) -> List[Token]:
     return Lexer(source).tokenize()

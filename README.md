@@ -148,7 +148,7 @@ fin
 
 ```jcraft
 mesa_crafteo vacío main():
-    texto opcion = cofre();
+    texto opcion = cofre("Seleccione una opción: ");
     
     portal (opcion):
         caso "1":
@@ -196,8 +196,8 @@ fin
 # Imprimir en consola
 letrero("Hola mundo");
 
-# Leer entrada del usuario
-texto entrada = cofre();
+# Leer entrada del usuario (requiere mensaje de prompt)
+texto entrada = cofre("Ingrese su nombre: ");
 
 # Conversiones de tipo
 bloques num = to_bloques("123");
@@ -260,11 +260,11 @@ mesa_crafteo vacío main():
     letrero("=== Calculadora ===");
     
     letrero("Primer número:");
-    texto entrada1 = cofre();
+    texto entrada1 = cofre("Digite el primer número: ");
     bloques num1 = to_bloques(entrada1);
     
     letrero("Segundo número:");
-    texto entrada2 = cofre();
+    texto entrada2 = cofre("Digite el segundo número: ");
     bloques num2 = to_bloques(entrada2);
     
     bloques suma = sumar(num1, num2);
@@ -385,7 +385,7 @@ portal (entrada):
 ### Otros
 - `fin` - end block
 - `letrero` - print
-- `cofre` - input
+- `cofre` - input (requires prompt parameter)
 - `verdadero` - true
 - `falso` - false
 - `nulo` - null

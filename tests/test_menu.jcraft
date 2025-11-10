@@ -6,7 +6,7 @@ mesa_crafteo vacío main():
     letrero("4. Salir");
     
     letrero("Elige una opción:");
-    texto entrada = cofre();
+    texto entrada = cofre("Seleccione una opción (1-4): ");
     
     portal (entrada):
         caso "1":

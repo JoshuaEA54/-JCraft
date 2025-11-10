@@ -66,9 +66,9 @@ class WhileStmt(ASTNode):
 @dataclass
 class ForStmt(ASTNode):
     # cultivar (init; cond; step): ... cosechar;
-    init: Optional[Any]  # puede ser VarDecl o Assign
+    init: Optional[Any]  # can be VarDecl or Assign
     condition: Any
-    step: Optional[Any]  # expresión de incremento
+    step: Optional[Any]  # increment expression
     body: List[ASTNode]
 
 
@@ -185,7 +185,6 @@ class Parser:
     def parse(self) -> Program:
         decls = []
         while self.current() is not None:
-            # skip stray newlines if any (lexer doesn't produce NEWLINE tokens except via COMMENTS)
             node = self.parse_declaration()
             if node:
                 decls.append(node)
@@ -222,7 +221,7 @@ class Parser:
             "inventario",
             "mapa",
         ):
-            var_type = self._expect_type_token()  # Esto ahora maneja genéricos
+            var_type = self._expect_type_token()  # This now handles generics
             name_tok = self.expect("IDENT")
             name = name_tok.value
             # assignment
@@ -245,52 +244,153 @@ class Parser:
         """
         Parse a type, including generics like inventario<bloques> or mapa<texto,bloques>
         Returns the full type string like "inventario<bloques>"
+        
+        Syntax rules:
+        - inventario must have exactly 1 type parameter: inventario<T>
+        - mapa must have exactly 2 type parameters: mapa<K,V>
+        - Other types cannot have type parameters
         """
         tok = self.current()
         if not tok:
             raise ParserError("Expected type but got EOF")
-        if tok.type == "KEYWORD":
-            base_type = tok.value
+        if tok.type != "KEYWORD":
+            raise ParserError(
+                f"Expected type keyword but got {tok.type} at {tok.line}:{tok.column}"
+            )
+        
+        base_type = tok.value
+        self.advance()
+        
+        # Check if this type expects generic parameters
+        if self.current() and self.current().type in ("LT", "OP") and \
+           (self.current().type == "LT" or self.current().value == "<"):
+            
+            # Validate that only inventario and mapa can have type parameters
+            if base_type not in ("inventario", "mapa"):
+                raise ParserError(
+                    f"Type '{base_type}' cannot have type parameters at {tok.line}:{tok.column}"
+                )
+            
+            self.advance()  # consume <
+            
+            # Parse type parameters based on base type
+            if base_type == "inventario":
+                # inventario requires exactly 1 type parameter
+                return self._parse_inventario_type(tok.line, tok.column)
+            elif base_type == "mapa":
+                # mapa requires exactly 2 type parameters
+                return self._parse_mapa_type(tok.line, tok.column)
+        else:
+            # No type parameters - check if they are required
+            if base_type == "inventario":
+                raise ParserError(
+                    f"Type 'inventario' requires a type parameter: inventario<T> at {tok.line}:{tok.column}"
+                )
+            elif base_type == "mapa":
+                raise ParserError(
+                    f"Type 'mapa' requires two type parameters: mapa<K,V> at {tok.line}:{tok.column}"
+                )
+        
+        return base_type
+    
+    def _parse_inventario_type(self, line: int, column: int) -> str:
+        """
+        Parse inventario<T> type - requires exactly 1 type parameter
+        Assumes '<' has already been consumed
+        Supports nested generics like inventario<inventario<bloques>>
+        """
+        # Parse element type (can be a simple type or a generic type)
+        tok = self.current()
+        if not tok or tok.type != "KEYWORD":
+            raise ParserError(
+                f"Expected type parameter for inventario but got {tok.type if tok else 'EOF'} at {line}:{column}"
+            )
+        
+        # Check if this is a nested generic type
+        if tok.value in ("inventario", "mapa"):
+            # Recursively parse the nested generic type
+            element_type = self._expect_type_token()
+        else:
+            # Simple type
+            element_type = tok.value
             self.advance()
-            
-            # Check for generic type: inventario<T> or mapa<K,V>
-            if self.current() and self.current().type in ("LT", "OP") and \
-               (self.current().type == "LT" or self.current().value == "<"):
-                self.advance()  # consume <
-                
-                # Parse first type parameter (simple type only, no nested generics)
-                tok = self.current()
-                if not tok or tok.type != "KEYWORD":
-                    raise ParserError(f"Expected type parameter but got {tok.type if tok else 'EOF'}")
-                type_param1 = tok.value
-                self.advance()
-                
-                type_params = [type_param1]
-                
-                # Check for second type parameter (for mapa<K,V>)
-                if self.current() and self.current().type == "COMMA":
-                    self.advance()
-                    tok = self.current()
-                    if not tok or tok.type != "KEYWORD":
-                        raise ParserError(f"Expected second type parameter but got {tok.type if tok else 'EOF'}")
-                    type_param2 = tok.value
-                    self.advance()
-                    type_params.append(type_param2)
-                
-                # Expect >
-                tok = self.current()
-                if tok and (tok.type == "GT" or (tok.type == "OP" and tok.value == ">")):
-                    self.advance()
-                else:
-                    raise ParserError(f"Expected '>' to close generic type at {tok.line if tok else 'EOF'}")
-                
-                # Build full type string
-                return f"{base_type}<{','.join(type_params)}>"
-            
-            return base_type
-        raise ParserError(
-            f"Expected type keyword but got {tok.type} at {tok.line}:{tok.column}"
-        )
+        
+        # Check for invalid comma (inventario takes only 1 parameter)
+        if self.current() and self.current().type == "COMMA":
+            raise ParserError(
+                f"inventario requires exactly 1 type parameter, not 2 at {self.current().line}:{self.current().column}"
+            )
+        
+        # Expect >
+        tok = self.current()
+        if not (tok and (tok.type == "GT" or (tok.type == "OP" and tok.value == ">"))):
+            raise ParserError(
+                f"Expected '>' to close inventario type at {tok.line if tok else 'EOF'}:{tok.column if tok else 'EOF'}"
+            )
+        self.advance()
+        
+        return f"inventario<{element_type}>"
+    
+    def _parse_mapa_type(self, line: int, column: int) -> str:
+        """
+        Parse mapa<K,V> type - requires exactly 2 type parameters
+        Assumes '<' has already been consumed
+        Supports nested generics like mapa<texto,inventario<bloques>>
+        """
+        # Parse key type (can be a simple type or a generic type)
+        tok = self.current()
+        if not tok or tok.type != "KEYWORD":
+            raise ParserError(
+                f"Expected key type parameter for mapa but got {tok.type if tok else 'EOF'} at {line}:{column}"
+            )
+        
+        # Check if key type is a nested generic type
+        if tok.value in ("inventario", "mapa"):
+            # Recursively parse the nested generic type
+            key_type = self._expect_type_token()
+        else:
+            # Simple type
+            key_type = tok.value
+            self.advance()
+        
+        # Expect comma
+        if not (self.current() and self.current().type == "COMMA"):
+            raise ParserError(
+                f"Expected ',' after key type in mapa at {self.current().line if self.current() else 'EOF'}:{self.current().column if self.current() else 'EOF'}"
+            )
+        self.advance()
+        
+        # Parse value type (can be a simple type or a generic type)
+        tok = self.current()
+        if not tok or tok.type != "KEYWORD":
+            raise ParserError(
+                f"Expected value type parameter for mapa but got {tok.type if tok else 'EOF'} at {line}:{column}"
+            )
+        
+        # Check if value type is a nested generic type
+        if tok.value in ("inventario", "mapa"):
+            # Recursively parse the nested generic type
+            value_type = self._expect_type_token()
+        else:
+            # Simple type
+            value_type = tok.value
+            self.advance()
+        
+        # Check for invalid third parameter
+        if self.current() and self.current().type == "COMMA":
+            raise ParserError(
+                f"mapa requires exactly 2 type parameters, not more at {self.current().line}:{self.current().column}"
+            )
+        
+        # Expect >
+        tok = self.current()
+        if not (tok and (tok.type == "GT" or (tok.type == "OP" and tok.value == ">"))):
+            raise ParserError(
+                f"Expected '>' to close mapa type at {tok.line if tok else 'EOF'}:{tok.column if tok else 'EOF'}"
+            )
+        self.advance()
+        
+        return f"mapa<{key_type},{value_type}>"
 
     def parse_param_list(self) -> List[tuple]:
         params = []
@@ -299,7 +399,7 @@ class Parser:
         while True:
             # param type (KEYWORD)
             typ = self._expect_type_token()
-            # permitir que el nombre sea IDENT o KEYWORD (por si acaso)
+            # allow name to be IDENT or KEYWORD (just in case)
             tok = self.current()
             if not tok:
                 raise ParserError("Expected parameter name but got EOF")
@@ -345,7 +445,7 @@ class Parser:
             "inventario",
             "mapa",
         ):
-            var_type = self._expect_type_token()  # Maneja genéricos
+            var_type = self._expect_type_token()  # Handles generics
             name_tok = self.expect("IDENT")
             name = name_tok.value
             # assignment required
@@ -362,17 +462,20 @@ class Parser:
             return PrintStmt(expr)
 
         # Control flow: observador / comparador / dispensador -> multi-branch if
-        if tok.type == "KEYWORD" and tok.value in ("observador", "comparador", "dispensador"):
+        # Only 'observador' is allowed as the first branch. 'comparador' and
+        # 'dispensador' are allowed only as subsequent branches (like elif/else).
+        if tok.type == "KEYWORD" and tok.value in ("comparador", "dispensador"):
+            # comparador/dispensador without a leading observador is a syntax error
+            raise ParserError(f"'{tok.value}' without preceding 'observador' at {tok.line}:{tok.column}")
+
+        if tok.type == "KEYWORD" and tok.value == "observador":
             branches: List[tuple] = []
-            # primera rama
-            kw = tok.value
+            # first branch must be 'observador'
             self.advance()
-            cond = None
-            if kw in ("observador", "comparador"):
-                # expect '(' expr ')'
-                self.expect("LPAREN")
-                cond = self.parse_expression()
-                self.expect("RPAREN")
+            # expect '(' expr ')'
+            self.expect("LPAREN")
+            cond = self.parse_expression()
+            self.expect("RPAREN")
             # expect ':' after header
             self.expect("COLON")
 
@@ -389,7 +492,7 @@ class Parser:
                     stmts.append(stmt)
             branches.append((cond, stmts))
 
-            # subsequent branches
+            # subsequent branches (comparador / dispensador)
             while self.current() and self.current().type == 'KEYWORD' and self.current().value in ('comparador', 'dispensador'):
                 kw = self.current().value
                 self.advance()
@@ -411,6 +514,10 @@ class Parser:
                     if stmt:
                         stmts.append(stmt)
                 branches.append((cond, stmts))
+                
+                # If we just processed 'dispensador' (else), stop looking for more branches
+                if kw == 'dispensador':
+                    break
 
             # expect 'fin'
             if not (self.current() and self.current().type == 'KEYWORD' and self.current().value == 'fin'):
@@ -432,11 +539,11 @@ class Parser:
         if tok.type == "KEYWORD" and tok.value == "cultivar":
             self.advance()
             self.expect("LPAREN")
-            # init: puede ser VarDecl o Assign
+            # init: can be VarDecl or Assign
             init_tok = self.current()
             init_stmt = None
             if init_tok and init_tok.type == "KEYWORD" and init_tok.value in ("bloques", "coordenada", "texto", "redstone", "glifo", "inventario", "mapa"):
-                # VarDecl sin semicolon
+                # VarDecl without semicolon
                 var_type = init_tok.value
                 self.advance()
                 name_tok = self.expect("IDENT")
@@ -444,7 +551,7 @@ class Parser:
                 expr = self.parse_expression()
                 init_stmt = VarDecl(var_type, name_tok.value, expr)
             elif init_tok and init_tok.type == "IDENT":
-                # Assign sin semicolon
+                # Assign without semicolon
                 name = init_tok.value
                 self.advance()
                 self.expect("OP", "=")
@@ -455,11 +562,11 @@ class Parser:
             # condition
             cond = self.parse_expression()
             self.expect("SEMI")
-            # step: puede ser Assign (i = i + 1) o expresión simple (i++)
+            # step: can be Assign (i = i + 1) or simple expression (i++)
             step_tok = self.current()
             step_stmt = None
             if step_tok and step_tok.type == "IDENT":
-                # peek para ver si es asignación
+                # peek to see if it's an assignment
                 peek = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else None
                 if peek and peek.type == "OP" and peek.value == "=":
                     # Assign
@@ -469,7 +576,7 @@ class Parser:
                     expr = self.parse_expression()
                     step_stmt = Assign(name, expr)
                 else:
-                    # expresión simple
+                    # simple expression
                     step_stmt = self.parse_expression()
             else:
                 step_stmt = self.parse_expression()
@@ -719,9 +826,9 @@ class Parser:
         return self.parse_postfix()
     
     def parse_postfix(self):
-        """Parse postfix operators like indexación: xs[0], m["key"]"""
+        """Parse postfix operators like indexing: xs[0], m["key"]"""
         node = self.parse_primary()
-        # Soporte para indexación postfix
+        # Support for postfix indexing
         while self.current() and self.current().type == "LBRACK":
             self.advance()
             index_expr = self.parse_expression()
@@ -774,7 +881,7 @@ class Parser:
             self.expect("RPAREN")
             return node
         
-        # Lista literal: [1, 2, 3]
+        # List literal: [1, 2, 3]
         if tok.type == "LBRACK":
             self.advance()
             elements = []
@@ -788,7 +895,7 @@ class Parser:
             self.expect("RBRACK")
             return ListLiteral(elements)
         
-        # Mapa literal: {"clave": valor, "otra": valor2}
+        # Map literal: {"key": value, "other": value2}
         if tok.type == "LBRACE":
             self.advance()
             pairs = []

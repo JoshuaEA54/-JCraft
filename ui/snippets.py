@@ -144,7 +144,7 @@ letrero("5! = " + to_texto(fact));''',
     },
     
     "Casting": {
-        "Conversión a entero": '''texto entrada = cofre();
+        "Conversión a entero": '''texto entrada = cofre("Ingrese un número: ");
 bloques numero = to_bloques(entrada);
 letrero("Número ingresado: " + to_texto(numero));''',
         
@@ -170,11 +170,11 @@ mesa_crafteo vacío main():
     letrero("=== Calculadora Simple ===");
     
     letrero("Ingresa el primer número:");
-    texto entrada1 = cofre();
+    texto entrada1 = cofre("Primer número: ");
     bloques num1 = to_bloques(entrada1);
     
     letrero("Ingresa el segundo número:");
-    texto entrada2 = cofre();
+    texto entrada2 = cofre("Segundo número: ");
     bloques num2 = to_bloques(entrada2);
     
     bloques suma = sumar(num1, num2);
@@ -213,7 +213,7 @@ fin''',
     letrero("4. Salir");
     
     letrero("Elige una opción:");
-    texto entrada = cofre();
+    texto entrada = cofre("Seleccione una opción (1-4): ");
     
     portal (entrada):
         caso "1":
@@ -238,7 +238,7 @@ fin
 
 mesa_crafteo vacío main():
     letrero("Ingresa un número:");
-    texto entrada = cofre();
+    texto entrada = cofre("Digite un número: ");
     bloques numero = to_bloques(entrada);
     
     redstone positivo = esPositivo(numero);

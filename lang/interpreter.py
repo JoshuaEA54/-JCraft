@@ -89,11 +89,11 @@ class Interpreter:
                 self.debug_print('letrero ->', val)
                 return None
             if stmt.callee == 'cofre':
-                # cofre() returns texto from input callback
-                prompt = ''
-                if len(stmt.args) == 1:
-                    prompt_val = self.evaluate(stmt.args[0])
-                    prompt = str(prompt_val)
+                # cofre(prompt) returns texto from input callback
+                if len(stmt.args) != 1:
+                    raise InterpreterError('cofre expects exactly 1 argument (prompt text)')
+                prompt_val = self.evaluate(stmt.args[0])
+                prompt = str(prompt_val)
                 value = self.input_callback(prompt)
                 return value
             if stmt.callee == 'push':
@@ -355,10 +355,10 @@ class Interpreter:
             
             # === Otras funciones nativas ===
             if callee == 'cofre':
-                prompt = ''
-                if len(expr.args) == 1:
-                    prompt_val = self.evaluate(expr.args[0])
-                    prompt = str(prompt_val)
+                if len(expr.args) != 1:
+                    raise InterpreterError('cofre expects exactly 1 argument (prompt text)')
+                prompt_val = self.evaluate(expr.args[0])
+                prompt = str(prompt_val)
                 value = self.input_callback(prompt)
                 return value
             if callee == 'length':
@@ -434,7 +434,7 @@ class Interpreter:
         raise InterpreterError(f'Cannot evaluate expression of type {type(expr)}')
 
 
-def run_source(source: str, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, type_check: bool = True):
+def run_source(source: str, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, type_check: bool = True, print_ast: bool = False):
     from .lexer import tokenize
     from .parser import Parser
     from .type_checker import TypeChecker
@@ -443,12 +443,22 @@ def run_source(source: str, input_callback: Optional[Callable[[str], str]] = Non
     p = Parser(toks)
     prog = p.parse()
     
+    # Imprimir AST en consola si está habilitado
+    if print_ast:
+        print("\n" + "="*60)
+        print("ÁRBOL SINTÁCTICO ABSTRACTO (AST)")
+        print("="*60)
+        print(prog)
+        print("="*60 + "\n")
+    
     # Verificación de tipos estática (si está habilitada)
     if type_check:
         checker = TypeChecker()
         if not checker.check(prog):
-            checker.print_errors()
-            raise InterpreterError(f"Type check failed with {len(checker.errors)} error(s)")
+            # Retornar los errores formateados en lugar de imprimirlos
+            error_messages = checker.get_formatted_errors()
+            error_text = "\n".join(error_messages)
+            raise InterpreterError(error_text)
     
     interp = Interpreter(input_callback=input_callback, debug=debug)
     results = interp.run(prog)

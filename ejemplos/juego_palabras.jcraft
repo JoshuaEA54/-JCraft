@@ -19,7 +19,7 @@ mesa_crafteo vacío main():
     puntuaciones["jugador2"] = 0;
     
     letrero("Ingresa una palabra:");
-    texto palabra = cofre();
+    texto palabra = cofre("Ingrese una palabra");
     
     bloques longitud = 5;  # Asumimos longitud conocida
     bloques puntos = longitud * 10;

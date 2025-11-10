@@ -10,11 +10,13 @@ from .editor_panel import EditorPanel
 from .output_panel import OutputPanel
 from .fonts import load_pixel_font_family
 from .snippets import get_snippet_menu_structure
+from .chest_dialog import show_chest_dialog
 
 # language tooling
 from lang.lexer import tokenize
 from lang.parser import Parser
 from lang.interpreter import run_source
+from lang.formatter import format_jcraft_code
 
 ASSETS = Path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
@@ -115,7 +117,10 @@ fin
         menu_view.addAction(act_pixel)
 
         menu_opt = mb.addMenu("Opciones")
-        menu_opt.addAction(QAction("Formatear (stub)", self))
+        act_format = QAction("Formatear", self)
+        act_format.setShortcut("Ctrl+Shift+F")
+        act_format.triggered.connect(self._on_format)
+        menu_opt.addAction(act_format)
 
         act_exit = QAction("Salir", self)
         act_exit.triggered.connect(self.close)
@@ -151,6 +156,14 @@ fin
             # parse
             p = Parser(toks)
             prog = p.parse()
+            
+            # Imprimir AST en consola de VSCode
+            print("\n" + "="*60)
+            print("ÁRBOL SINTÁCTICO ABSTRACTO (AST)")
+            print("="*60)
+            print(prog)
+            print("="*60 + "\n")
+            
             self.output_panel.append("\n--- AST ---")
             self.output_panel.append(repr(prog))
             self.output_panel.append("\n[OK] Compilación terminada sin errores.")
@@ -163,41 +176,19 @@ fin
         self.output_panel.append("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
         
-        # Callback para cofre() que muestra primero el prompt en OUTPUT y luego el diálogo
+        # Callback for cofre() that shows the Minecraft chest dialog
         def input_callback(prompt: str) -> str:
-            # Mostrar el prompt en la consola de salida
-            self.output_panel.append(prompt)
+            # Show the prompt in the output console
+            if prompt:
+                self.output_panel.append(prompt)
             
-            # Crear diálogo con estilo para que todo sea visible (texto negro, botones negros)
-            dialog = QInputDialog(self)
-            dialog.setWindowTitle("Entrada - cofre()")
-            dialog.setLabelText(prompt)
-            dialog.setStyleSheet("""
-                QLabel { 
-                    color: black; 
-                }
-                QLineEdit { 
-                    color: black; 
-                    background-color: white; 
-                }
-                QPushButton { 
-                    color: black; 
-                    background-color: #e0e0e0;
-                    border: 1px solid #999;
-                    padding: 5px 15px;
-                }
-                QPushButton:hover {
-                    background-color: #d0d0d0;
-                }
-            """)
-            
-            if dialog.exec():
-                text = dialog.textValue()
-                return text
-            return ""  # si cancela, devuelve vacío
+            # Show the Minecraft-style chest dialog
+            text = show_chest_dialog(prompt, self)
+            return text
         
         try:
-            results = run_source(src, input_callback=input_callback, debug=False)
+            # Habilitar print_ast=True para que imprima el AST en la consola de VSCode
+            results = run_source(src, input_callback=input_callback, debug=False, print_ast=True)
             if results:
                 for r in results:
                     self.output_panel.append(str(r))
@@ -205,7 +196,18 @@ fin
                 self.output_panel.append("(sin salida)")
             self.output_panel.append("\n[OK] Ejecución terminada.")
         except Exception as e:
-            self.output_panel.append(f"[ERROR] {type(e).__name__}: {e}")
+            # Mostrar el error completo con sus detalles
+            error_message = str(e)
+            
+            # Si es un error del type checker, viene formateado con saltos de línea
+            if "\n" in error_message:
+                self.output_panel.append("[ERROR]")
+                for line in error_message.split("\n"):
+                    if line.strip():  # Solo mostrar líneas no vacías
+                        self.output_panel.append(line)
+            else:
+                # Otros errores se muestran normalmente
+                self.output_panel.append(f"[ERROR] {type(e).__name__}: {error_message}")
 
     def _zoom_in(self):
         self.editor_panel.zoom(+1)
@@ -223,6 +225,26 @@ fin
         self.editor_panel.toggle_pixel_font(checked)
         fam = self.editor_panel._font_family_pixel if checked and self.editor_panel._font_family_pixel else "Consolas"
         self.output_panel.set_font_family(fam)
+
+    def _on_format(self):
+        """Formatea el código del editor aplicando indentación y estructura correcta"""
+        try:
+            current_code = self.editor_panel.text()
+            
+            if not current_code.strip():
+                self.statusBar().showMessage("No hay código para formatear", 3000)
+                return
+            
+            formatted_code = format_jcraft_code(current_code)
+            
+            self.editor_panel.set_text(formatted_code)
+            
+            self.statusBar().showMessage("✓ Código formateado correctamente", 3000)
+            
+        except Exception as e:
+            self.statusBar().showMessage(f"Error al formatear: {e}", 5000)
+            self.output_panel.clear()
+            self.output_panel.append(f"[ERROR] No se pudo formatear el código: {e}")
 
     def _build_snippet_menu(self, parent_menu):
         """Construye el menú de snippets organizados por categorías"""
