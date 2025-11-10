@@ -1,13 +1,3 @@
-"""
-Formateador de código para :JCraft
-Autor: Joshua Elizondo Abarca & Jazmín Gamboa Chacón
-Universidad Nacional - Paradigmas de Programación
-
-Este módulo formatea código :JCraft para mejorar legibilidad y consistencia.
-El lenguaje permite código sin formato (todo en una línea con ;), 
-pero el formateador ayuda a estructurar el código correctamente.
-"""
-
 import re
 from typing import List
 
