@@ -297,22 +297,23 @@ class Parser:
         """
         Parse inventario<T> type - requires exactly 1 type parameter
         Assumes '<' has already been consumed
+        Supports nested generics like inventario<inventario<bloques>>
         """
-        # Parse element type (must be a simple type, no nested generics)
+        # Parse element type (can be a simple type or a generic type)
         tok = self.current()
         if not tok or tok.type != "KEYWORD":
             raise ParserError(
                 f"Expected type parameter for inventario but got {tok.type if tok else 'EOF'} at {line}:{column}"
             )
         
-        # Validate that the type parameter is not a generic type
+        # Check if this is a nested generic type
         if tok.value in ("inventario", "mapa"):
-            raise ParserError(
-                f"inventario cannot contain nested generic types at {tok.line}:{tok.column}"
-            )
-        
-        element_type = tok.value
-        self.advance()
+            # Recursively parse the nested generic type
+            element_type = self._expect_type_token()
+        else:
+            # Simple type
+            element_type = tok.value
+            self.advance()
         
         # Check for invalid comma (inventario takes only 1 parameter)
         if self.current() and self.current().type == "COMMA":
@@ -334,22 +335,23 @@ class Parser:
         """
         Parse mapa<K,V> type - requires exactly 2 type parameters
         Assumes '<' has already been consumed
+        Supports nested generics like mapa<texto,inventario<bloques>>
         """
-        # Parse key type (must be a simple type, no nested generics)
+        # Parse key type (can be a simple type or a generic type)
         tok = self.current()
         if not tok or tok.type != "KEYWORD":
             raise ParserError(
                 f"Expected key type parameter for mapa but got {tok.type if tok else 'EOF'} at {line}:{column}"
             )
         
-        # Validate that the key type is not a generic type
+        # Check if key type is a nested generic type
         if tok.value in ("inventario", "mapa"):
-            raise ParserError(
-                f"mapa keys cannot be generic types at {tok.line}:{tok.column}"
-            )
-        
-        key_type = tok.value
-        self.advance()
+            # Recursively parse the nested generic type
+            key_type = self._expect_type_token()
+        else:
+            # Simple type
+            key_type = tok.value
+            self.advance()
         
         # Expect comma
         if not (self.current() and self.current().type == "COMMA"):
@@ -358,21 +360,21 @@ class Parser:
             )
         self.advance()
         
-        # Parse value type (must be a simple type, no nested generics)
+        # Parse value type (can be a simple type or a generic type)
         tok = self.current()
         if not tok or tok.type != "KEYWORD":
             raise ParserError(
                 f"Expected value type parameter for mapa but got {tok.type if tok else 'EOF'} at {line}:{column}"
             )
         
-        # Validate that the value type is not a generic type
+        # Check if value type is a nested generic type
         if tok.value in ("inventario", "mapa"):
-            raise ParserError(
-                f"mapa values cannot be generic types at {tok.line}:{tok.column}"
-            )
-        
-        value_type = tok.value
-        self.advance()
+            # Recursively parse the nested generic type
+            value_type = self._expect_type_token()
+        else:
+            # Simple type
+            value_type = tok.value
+            self.advance()
         
         # Check for invalid third parameter
         if self.current() and self.current().type == "COMMA":
