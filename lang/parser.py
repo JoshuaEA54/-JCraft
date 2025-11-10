@@ -185,7 +185,6 @@ class Parser:
     def parse(self) -> Program:
         decls = []
         while self.current() is not None:
-            # skip stray newlines if any (lexer doesn't produce NEWLINE tokens except via COMMENTS)
             node = self.parse_declaration()
             if node:
                 decls.append(node)
@@ -245,52 +244,151 @@ class Parser:
         """
         Parse a type, including generics like inventario<bloques> or mapa<texto,bloques>
         Returns the full type string like "inventario<bloques>"
+        
+        Syntax rules:
+        - inventario must have exactly 1 type parameter: inventario<T>
+        - mapa must have exactly 2 type parameters: mapa<K,V>
+        - Other types cannot have type parameters
         """
         tok = self.current()
         if not tok:
             raise ParserError("Expected type but got EOF")
-        if tok.type == "KEYWORD":
-            base_type = tok.value
-            self.advance()
+        if tok.type != "KEYWORD":
+            raise ParserError(
+                f"Expected type keyword but got {tok.type} at {tok.line}:{tok.column}"
+            )
+        
+        base_type = tok.value
+        self.advance()
+        
+        # Check if this type expects generic parameters
+        if self.current() and self.current().type in ("LT", "OP") and \
+           (self.current().type == "LT" or self.current().value == "<"):
             
-            # Check for generic type: inventario<T> or mapa<K,V>
-            if self.current() and self.current().type in ("LT", "OP") and \
-               (self.current().type == "LT" or self.current().value == "<"):
-                self.advance()  # consume <
-                
-                # Parse first type parameter (simple type only, no nested generics)
-                tok = self.current()
-                if not tok or tok.type != "KEYWORD":
-                    raise ParserError(f"Expected type parameter but got {tok.type if tok else 'EOF'}")
-                type_param1 = tok.value
-                self.advance()
-                
-                type_params = [type_param1]
-                
-                # Check for second type parameter (for mapa<K,V>)
-                if self.current() and self.current().type == "COMMA":
-                    self.advance()
-                    tok = self.current()
-                    if not tok or tok.type != "KEYWORD":
-                        raise ParserError(f"Expected second type parameter but got {tok.type if tok else 'EOF'}")
-                    type_param2 = tok.value
-                    self.advance()
-                    type_params.append(type_param2)
-                
-                # Expect >
-                tok = self.current()
-                if tok and (tok.type == "GT" or (tok.type == "OP" and tok.value == ">")):
-                    self.advance()
-                else:
-                    raise ParserError(f"Expected '>' to close generic type at {tok.line if tok else 'EOF'}")
-                
-                # Build full type string
-                return f"{base_type}<{','.join(type_params)}>"
+            # Validate that only inventario and mapa can have type parameters
+            if base_type not in ("inventario", "mapa"):
+                raise ParserError(
+                    f"Type '{base_type}' cannot have type parameters at {tok.line}:{tok.column}"
+                )
             
-            return base_type
-        raise ParserError(
-            f"Expected type keyword but got {tok.type} at {tok.line}:{tok.column}"
-        )
+            self.advance()  # consume <
+            
+            # Parse type parameters based on base type
+            if base_type == "inventario":
+                # inventario requires exactly 1 type parameter
+                return self._parse_inventario_type(tok.line, tok.column)
+            elif base_type == "mapa":
+                # mapa requires exactly 2 type parameters
+                return self._parse_mapa_type(tok.line, tok.column)
+        else:
+            # No type parameters - check if they are required
+            if base_type == "inventario":
+                raise ParserError(
+                    f"Type 'inventario' requires a type parameter: inventario<T> at {tok.line}:{tok.column}"
+                )
+            elif base_type == "mapa":
+                raise ParserError(
+                    f"Type 'mapa' requires two type parameters: mapa<K,V> at {tok.line}:{tok.column}"
+                )
+        
+        return base_type
+    
+    def _parse_inventario_type(self, line: int, column: int) -> str:
+        """
+        Parse inventario<T> type - requires exactly 1 type parameter
+        Assumes '<' has already been consumed
+        """
+        # Parse element type (must be a simple type, no nested generics)
+        tok = self.current()
+        if not tok or tok.type != "KEYWORD":
+            raise ParserError(
+                f"Expected type parameter for inventario but got {tok.type if tok else 'EOF'} at {line}:{column}"
+            )
+        
+        # Validate that the type parameter is not a generic type
+        if tok.value in ("inventario", "mapa"):
+            raise ParserError(
+                f"inventario cannot contain nested generic types at {tok.line}:{tok.column}"
+            )
+        
+        element_type = tok.value
+        self.advance()
+        
+        # Check for invalid comma (inventario takes only 1 parameter)
+        if self.current() and self.current().type == "COMMA":
+            raise ParserError(
+                f"inventario requires exactly 1 type parameter, not 2 at {self.current().line}:{self.current().column}"
+            )
+        
+        # Expect >
+        tok = self.current()
+        if not (tok and (tok.type == "GT" or (tok.type == "OP" and tok.value == ">"))):
+            raise ParserError(
+                f"Expected '>' to close inventario type at {tok.line if tok else 'EOF'}:{tok.column if tok else 'EOF'}"
+            )
+        self.advance()
+        
+        return f"inventario<{element_type}>"
+    
+    def _parse_mapa_type(self, line: int, column: int) -> str:
+        """
+        Parse mapa<K,V> type - requires exactly 2 type parameters
+        Assumes '<' has already been consumed
+        """
+        # Parse key type (must be a simple type, no nested generics)
+        tok = self.current()
+        if not tok or tok.type != "KEYWORD":
+            raise ParserError(
+                f"Expected key type parameter for mapa but got {tok.type if tok else 'EOF'} at {line}:{column}"
+            )
+        
+        # Validate that the key type is not a generic type
+        if tok.value in ("inventario", "mapa"):
+            raise ParserError(
+                f"mapa keys cannot be generic types at {tok.line}:{tok.column}"
+            )
+        
+        key_type = tok.value
+        self.advance()
+        
+        # Expect comma
+        if not (self.current() and self.current().type == "COMMA"):
+            raise ParserError(
+                f"Expected ',' after key type in mapa at {self.current().line if self.current() else 'EOF'}:{self.current().column if self.current() else 'EOF'}"
+            )
+        self.advance()
+        
+        # Parse value type (must be a simple type, no nested generics)
+        tok = self.current()
+        if not tok or tok.type != "KEYWORD":
+            raise ParserError(
+                f"Expected value type parameter for mapa but got {tok.type if tok else 'EOF'} at {line}:{column}"
+            )
+        
+        # Validate that the value type is not a generic type
+        if tok.value in ("inventario", "mapa"):
+            raise ParserError(
+                f"mapa values cannot be generic types at {tok.line}:{tok.column}"
+            )
+        
+        value_type = tok.value
+        self.advance()
+        
+        # Check for invalid third parameter
+        if self.current() and self.current().type == "COMMA":
+            raise ParserError(
+                f"mapa requires exactly 2 type parameters, not more at {self.current().line}:{self.current().column}"
+            )
+        
+        # Expect >
+        tok = self.current()
+        if not (tok and (tok.type == "GT" or (tok.type == "OP" and tok.value == ">"))):
+            raise ParserError(
+                f"Expected '>' to close mapa type at {tok.line if tok else 'EOF'}:{tok.column if tok else 'EOF'}"
+            )
+        self.advance()
+        
+        return f"mapa<{key_type},{value_type}>"
 
     def parse_param_list(self) -> List[tuple]:
         params = []
