@@ -16,6 +16,7 @@ from .chest_dialog import show_chest_dialog
 from lang.lexer import tokenize
 from lang.parser import Parser
 from lang.interpreter import run_source
+from lang.formatter import format_jcraft_code
 
 ASSETS = Path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
@@ -116,7 +117,10 @@ fin
         menu_view.addAction(act_pixel)
 
         menu_opt = mb.addMenu("Opciones")
-        menu_opt.addAction(QAction("Formatear (stub)", self))
+        act_format = QAction("Formatear", self)
+        act_format.setShortcut("Ctrl+Shift+F")
+        act_format.triggered.connect(self._on_format)
+        menu_opt.addAction(act_format)
 
         act_exit = QAction("Salir", self)
         act_exit.triggered.connect(self.close)
@@ -221,6 +225,26 @@ fin
         self.editor_panel.toggle_pixel_font(checked)
         fam = self.editor_panel._font_family_pixel if checked and self.editor_panel._font_family_pixel else "Consolas"
         self.output_panel.set_font_family(fam)
+
+    def _on_format(self):
+        """Formatea el código del editor aplicando indentación y estructura correcta"""
+        try:
+            current_code = self.editor_panel.text()
+            
+            if not current_code.strip():
+                self.statusBar().showMessage("No hay código para formatear", 3000)
+                return
+            
+            formatted_code = format_jcraft_code(current_code)
+            
+            self.editor_panel.set_text(formatted_code)
+            
+            self.statusBar().showMessage("✓ Código formateado correctamente", 3000)
+            
+        except Exception as e:
+            self.statusBar().showMessage(f"Error al formatear: {e}", 5000)
+            self.output_panel.clear()
+            self.output_panel.append(f"[ERROR] No se pudo formatear el código: {e}")
 
     def _build_snippet_menu(self, parent_menu):
         """Construye el menú de snippets organizados por categorías"""

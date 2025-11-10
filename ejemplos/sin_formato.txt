@@ -1,0 +1,15 @@
+# Ejemplo de código :JCraft SIN FORMATO
+# Este código está todo en líneas largas con punto y coma
+# Usa el botón "Formatear" en Opciones para darle estructura
+
+mesa_crafteo bloques factorial(bloques n): observador (n <= 1): craftear 1; fin craftear n * factorial(n - 1); fin
+
+mesa_crafteo vacío main(): letrero("=== Calculadora de Factorial ==="); bloques num = to_bloques(cofre("Ingrese un número:")); bloques resultado = factorial(num); letrero("El factorial de " + to_texto(num) + " es: " + to_texto(resultado)); observador (resultado > 1000): letrero("¡Número muy grande!"); comparador (resultado > 100): letrero("Número grande"); dispensador: letrero("Número pequeño"); fin letrero("Fin del programa"); fin
+
+# Ejemplo más complejo - Sistema de inventario compacto
+mesa_crafteo vacío mostrar_items(inventario<texto> items): letrero("=== INVENTARIO ==="); bloques i = 0; spawner (i < length(items)): letrero("Item " + to_texto(i + 1) + ": " + items[i]); i += 1; romper letrero("=================="); fin
+
+mesa_crafteo vacío main(): inventario<texto> mochila = []; letrero("Sistema de Inventario"); push(mochila, "Espada"); push(mochila, "Pico"); push(mochila, "Comida"); mostrar_items(mochila); bloques continuar = 1; spawner (continuar == 1): texto accion = cofre("¿Agregar más items? (si/no)"); observador (accion == "no"): continuar = 0; comparador (accion == "si"): texto nuevo = cofre("Nombre del item:"); push(mochila, nuevo); fin romper mostrar_items(mochila); letrero("Total de items: " + to_texto(length(mochila))); fin
+
+# Este código es válido y ejecutable, pero difícil de leer
+# El formateador lo convertirá en código limpio y estructurado
