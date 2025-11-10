@@ -3,7 +3,7 @@ Type Checker para JCraft
 Valida tipos estáticamente antes de la ejecución
 """
 
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from .parser import (
     Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt,
