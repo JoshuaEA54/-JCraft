@@ -48,7 +48,7 @@ class CodePreprocessor:
                 continue
             
             if re.match(r'^__COMMENT_\d+__$', stripped):
-                processed_lines.append(f'__STANDALONECOMMENT__{stripped};')
+                processed_lines.append(f'__STANDALONECOMMENT__{stripped};')# El ; es para que el tokenizador lo trate como un statement separado
             else:
                 processed_lines.append(stripped)
         

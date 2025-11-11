@@ -1,8 +1,8 @@
 """Gestión de indentación de código"""
 import re
 from typing import List
-from .keywords import (BLOCK_OPENERS, BLOCK_CLOSERS, CONDITIONAL_ALTERNATIVES,
-                       SWITCH_ALTERNATIVES, OPENERS_REQUIRE_PAREN)
+from .keywords import (BLOCK_OPENERS, BLOCK_CLOSERS, SWITCH_ALTERNATIVES,
+                        OPENERS_REQUIRE_PAREN)
 
 
 class Indenter:
