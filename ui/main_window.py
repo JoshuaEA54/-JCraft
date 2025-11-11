@@ -16,7 +16,7 @@ from .chest_dialog import show_chest_dialog
 from lang.lexer import tokenize
 from lang.parser import Parser
 from lang.interpreter import run_source
-from lang.formatter import format_jcraft_code
+from lang.format import format_jcraft_code
 
 ASSETS = Path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
