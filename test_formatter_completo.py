@@ -3,7 +3,7 @@ Test completo del formateador :JCraft
 Casos de prueba para todas las estructuras sintácticas
 """
 
-from lang.formatter import format_jcraft_code
+from lang.format import format_jcraft_code
 
 
 def test_case(name: str, input_code: str, description: str = ""):

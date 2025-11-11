@@ -1,7 +1,5 @@
 """Preprocesamiento de código para preservar strings y comentarios"""
 import re
-from typing import List, Tuple
-
 
 class CodePreprocessor:
     """Maneja la preservación y restauración de strings y comentarios"""
