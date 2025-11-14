@@ -855,9 +855,6 @@ class Parser:
         if tok.type == "BOOL":
             self.advance()
             return Literal(tok.value)
-        if tok.type == "NULL":
-            self.advance()
-            return Literal(None)
         if tok.type in ("IDENT", "KEYWORD"):
             # could be function call or variable
             name = tok.value
