@@ -1,5 +1,5 @@
 from pathlib import Path
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QThread, Signal, QObject
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QMenuBar, QStatusBar, QSplitter, QInputDialog, QMenu
@@ -22,6 +22,67 @@ ASSETS = Path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
 ICON_PATHS = [ASSETS / "jcraft_logo.ico", ASSETS / "jcraft_logo.png"]
 
+
+class InterpreterWorker(QObject):
+    """Worker para ejecutar el intérprete en un hilo separado"""
+    output_ready = Signal(str)  # Señal para enviar outputs en tiempo real
+    finished = Signal()  # Señal cuando termina la ejecución
+    error = Signal(str)  # Señal para errores
+    stopped = Signal()  # Señal cuando se detiene manualmente
+    
+    def __init__(self, source_code: str, input_callback, print_ast: bool = False):
+        super().__init__()
+        self.source_code = source_code
+        self.input_callback = input_callback
+        self.print_ast = print_ast
+        self._stop_requested = False
+    
+    def request_stop(self):
+        """Solicita detener la ejecución"""
+        self._stop_requested = True
+    
+    def run(self):
+        """Ejecuta el código en el hilo separado"""
+        try:
+            # Callback para recibir outputs en tiempo real
+            def output_callback(output: str):
+                if self._stop_requested:
+                    raise InterruptedError("Ejecución detenida por el usuario")
+                self.output_ready.emit(output)
+            
+            # Ejecutar el código
+            results = run_source(
+                self.source_code, 
+                input_callback=self.input_callback, 
+                debug=False, 
+                print_ast=self.print_ast,
+                output_callback=output_callback
+            )
+            
+            # Si hay resultados que no se enviaron por el callback, enviarlos ahora
+            # (esto normalmente no debería pasar porque todos los letreros ya se enviaron)
+            if not results:
+                self.output_ready.emit("(sin salida)")
+            
+            if self._stop_requested:
+                self.stopped.emit()
+            else:
+                self.finished.emit()
+        except InterruptedError as e:
+            # Ejecución detenida manualmente
+            self.error.emit(f"[DETENIDO] {e}")
+            self.stopped.emit()
+        except Exception as e:
+            # Manejar errores
+            error_message = str(e)
+            if "\n" in error_message:
+                error_lines = ["[ERROR]"] + [line for line in error_message.split("\n") if line.strip()]
+                self.error.emit("\n".join(error_lines))
+            else:
+                self.error.emit(f"[ERROR] {type(e).__name__}: {error_message}")
+            self.finished.emit()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, title=":JCraft IDE"):
         super().__init__()
@@ -35,6 +96,11 @@ class MainWindow(QMainWindow):
                 break
 
         self.pixel_family = load_pixel_font_family()
+        
+        # Threading para ejecución
+        self.worker_thread = None
+        self.worker = None
+        self.is_running = False  # Flag para saber si hay ejecución en curso
 
         self._build_ui()
         self._build_menu()
@@ -141,6 +207,7 @@ fin
     def _wire_stubs(self):
         self.output_panel.btn_compile.clicked.connect(self._on_compile)
         self.output_panel.btn_run.clicked.connect(self._on_run)
+        self.output_panel.btn_stop.clicked.connect(self._on_stop)
 
     def _on_compile(self):
         """Run lexer + parser and display tokens and AST in the output panel."""
@@ -172,6 +239,17 @@ fin
 
     def _on_run(self):
         """Execute the source via the interpreter and show results."""
+        # Si ya hay una ejecución en curso, no iniciar otra
+        if self.is_running:
+            self.output_panel.append("[ADVERTENCIA] Ya hay una ejecución en curso. Usa DETENER para cancelarla.")
+            return
+        
+        self.is_running = True
+        # Ocultar botón EJECUTAR y mostrar DETENER en su lugar
+        self.output_panel.btn_run.setVisible(False)
+        self.output_panel.btn_stop.setVisible(True)
+        self.output_panel.btn_compile.setEnabled(False)
+        
         self.output_panel.clear()
         self.output_panel.append("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
@@ -189,6 +267,58 @@ fin
             text = show_chest_dialog(prompt, self)
             return text
         
+        # Crear el worker y el thread
+        self.worker = InterpreterWorker(src, input_callback, print_ast=True)
+        self.worker_thread = QThread()
+        
+        # Mover el worker al thread
+        self.worker.moveToThread(self.worker_thread)
+        
+        # Conectar señales
+        self.worker_thread.started.connect(self.worker.run)
+        self.worker.output_ready.connect(self._on_output_ready)
+        self.worker.error.connect(self._on_execution_error)
+        self.worker.finished.connect(self._on_execution_finished)
+        self.worker.stopped.connect(self._on_execution_stopped)
+        self.worker.finished.connect(self.worker_thread.quit)
+        self.worker.stopped.connect(self.worker_thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.stopped.connect(self.worker.deleteLater)
+        self.worker_thread.finished.connect(self.worker_thread.deleteLater)
+        
+        # Iniciar el thread
+        self.worker_thread.start()
+    
+    def _on_stop(self):
+        """Detiene la ejecución actual"""
+        if self.is_running and self.worker:
+            self.worker.request_stop()
+            self.output_panel.append("\n[DETENIENDO...] Esperando que termine la iteración actual...")
+    
+    def _on_output_ready(self, output: str):
+        """Callback cuando hay output disponible del intérprete"""
+        self.output_panel.append(output)
+    
+    def _on_execution_error(self, error_msg: str):
+        """Callback cuando hay un error en la ejecución"""
+        self.output_panel.append(error_msg)
+    
+    def _on_execution_finished(self):
+        """Callback cuando termina la ejecución"""
+        self.output_panel.append("\n[OK] Ejecución terminada.")
+        self._reset_buttons()
+    
+    def _on_execution_stopped(self):
+        """Callback cuando se detiene la ejecución manualmente"""
+        self.output_panel.append("\n[DETENIDO] Ejecución cancelada por el usuario.")
+        self._reset_buttons()
+    
+    def _reset_buttons(self):
+        """Resetea el estado de los botones después de la ejecución"""
+        self.is_running = False
+        self.output_panel.btn_stop.setVisible(False)
+        self.output_panel.btn_run.setVisible(True)
+        self.output_panel.btn_compile.setEnabled(True)
         try:
             # Habilitar print_ast=True para que imprima el AST en la consola de VSCode
             run_source(src, 
