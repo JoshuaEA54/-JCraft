@@ -5,6 +5,7 @@ from .parser import (
     DoWhileStmt, SwitchStmt, BreakStmt, ContinueStmt, ListLiteral, 
     MapLiteral, IndexAccess, IndexAssign
 )
+import time
 
 
 class InterpreterError(Exception):
@@ -21,17 +22,67 @@ class ContinueException(Exception):
     pass
 
 
+class LoopLimitExceeded(InterpreterError):
+    """Exception raised when a loop exceeds the maximum iteration limit"""
+    pass
+
+
 class Interpreter:
-    def __init__(self, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False):
+    MAX_LOOP_ITERATIONS = 1_000_000
+    
+    def __init__(self, input_callback: Optional[Callable[[str], str]] = None, 
+                 output_callback: Optional[Callable[[str], None]] = None,
+                 stop_callback: Optional[Callable[[], bool]] = None,
+                 debug: bool = False):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, FunctionDecl] = {}
         self.results: List[str] = []
         self.input_callback = input_callback or (lambda prompt: input(prompt))
+        self.output_callback = output_callback
+        self.stop_callback = stop_callback 
         self.debug = debug
+        self.output_callback = output_callback  # Callback para enviar outputs en tiempo real
+        self._last_output_time = 0
+        self._output_throttle = 0.01  # Segundos mínimos entre outputs (10ms)
+
+    def _estimate_loop_iterations(self, init_val, condition, step_val):
+        """
+        Estimate the number of iterations a for loop will take.
+        Returns estimated iterations or None if cannot determine.
+        """
+        try:
+            # Intentar extraer información del bucle for común: i = 0; i < N; i += step
+            if not isinstance(init_val, (int, float)):
+                return None
+            if not isinstance(step_val, (int, float)):
+                return None
+            
+            # Calcular límite basado en la condición
+            # Nota: esto es una estimación simplificada
+            if step_val == 0:
+                return float('inf')  # Bucle infinito
+            
+            # Si step es negativo y init es menor, será infinito
+            # Si step es positivo y la condición no avanza, será infinito
+            return None  # No podemos determinar con certeza
+        except:
+            return None
 
     def debug_print(self, *args):
         if self.debug:
             print('DEBUG:', *args)
+
+    def _send_output_throttled(self, output: str):
+        """Envía output al callback con throttling para evitar saturar la UI"""
+        current_time = time.time()
+        if current_time - self._last_output_time >= self._output_throttle:
+            self.output_callback(output)
+            self._last_output_time = current_time
+        else:
+            # Si estamos emitiendo muy rápido, hacer un pequeño sleep
+            time.sleep(self._output_throttle)
+            self.output_callback(output)
+            self._last_output_time = time.time()
 
     def run(self, program: Program):
         # collect declarations
@@ -71,7 +122,13 @@ class Interpreter:
             val = self.evaluate(stmt.expr)
             out = str(val)
             self.results.append(out)
+            # Llamar al callback de salida inmediatamente si existe
+            if self.output_callback:
+                self.output_callback(out)
             self.debug_print('print ->', out)
+            # Enviar output en tiempo real si hay callback
+            if self.output_callback:
+                self._send_output_throttled(out)
             return None
 
         if isinstance(stmt, ReturnStmt):
@@ -85,8 +142,14 @@ class Interpreter:
                 if len(stmt.args) != 1:
                     raise InterpreterError('letrero expects 1 argument')
                 val = self.evaluate(stmt.args[0])
-                self.results.append(str(val))
+                out = str(val)
+                self.results.append(out)
+                if self.output_callback:
+                    self.output_callback(out)
                 self.debug_print('letrero ->', val)
+                # Enviar output en tiempo real si hay callback
+                if self.output_callback:
+                    self._send_output_throttled(out)
                 return None
             if stmt.callee == 'cofre':
                 # cofre(prompt) returns texto from input callback
@@ -169,7 +232,17 @@ class Interpreter:
 
         if isinstance(stmt, WhileStmt):
             # spawner (cond): ... romper;
+            iteration_count = 0
             while True:
+                # Verificar si se debe detener
+                if self.stop_callback and self.stop_callback():
+                    raise InterruptedError("Ejecución detenida por el usuario")
+                
+                iteration_count += 1
+                if iteration_count > self.MAX_LOOP_ITERATIONS:
+                    raise LoopLimitExceeded(
+                        f'While loop exceeded {self.MAX_LOOP_ITERATIONS:,} iterations'
+                    )
                 cond_val = self.evaluate(stmt.condition)
                 if not bool(cond_val):
                     break
@@ -188,8 +261,46 @@ class Interpreter:
             # execute init
             if stmt.init:
                 self.execute_statement(stmt.init)
-            # loop
+            
+            # Pre-validación: intentar detectar rangos problemáticos
+            try:
+                # Verificar la condición inicial
+                initial_cond = self.evaluate(stmt.condition)
+                
+                # Si la condición usa operadores de comparación con literales grandes
+                if isinstance(stmt.condition, ExprBin):
+                    right_val = self.evaluate(stmt.condition.right)
+                    # Detectar límites extremadamente grandes
+                    if isinstance(right_val, (int, float)) and abs(right_val) > self.MAX_LOOP_ITERATIONS:
+                        # Obtener el valor inicial de la variable del loop
+                        if isinstance(stmt.condition.left, VarRef):
+                            var_name = stmt.condition.left.name
+                            if var_name in self.variables:
+                                start_val = self.variables[var_name]
+                                if isinstance(start_val, (int, float)):
+                                    # Calcular iteraciones estimadas
+                                    diff = abs(right_val - start_val)
+                                    if diff > self.MAX_LOOP_ITERATIONS:
+                                        raise LoopLimitExceeded(
+                                            f'For loop range too large: {diff:,} iterations (max: {self.MAX_LOOP_ITERATIONS:,})'
+                                        )
+            except LoopLimitExceeded:
+                raise
+            except:
+                pass  # No pudimos validar, continuar con ejecución normal
+            
+            # loop con validación de respaldo
+            iteration_count = 0
             while True:
+                # Verificar si se debe detener
+                if self.stop_callback and self.stop_callback():
+                    raise InterruptedError("Ejecución detenida por el usuario")
+                
+                iteration_count += 1
+                if iteration_count > self.MAX_LOOP_ITERATIONS:
+                    raise LoopLimitExceeded(
+                        f'For loop exceeded {self.MAX_LOOP_ITERATIONS:,} iterations'
+                    )
                 cond_val = self.evaluate(stmt.condition)
                 if not bool(cond_val):
                     break
@@ -211,7 +322,17 @@ class Interpreter:
 
         if isinstance(stmt, DoWhileStmt):
             # creeper: ... boom (cond);
+            iteration_count = 0
             while True:
+                # Verificar si se debe detener
+                if self.stop_callback and self.stop_callback():
+                    raise InterruptedError("Ejecución detenida por el usuario")
+                
+                iteration_count += 1
+                if iteration_count > self.MAX_LOOP_ITERATIONS:
+                    raise LoopLimitExceeded(
+                        f'Do-while loop exceeded {self.MAX_LOOP_ITERATIONS:,} iterations'
+                    )
                 try:
                     rv = self.execute_block(stmt.body)
                     if rv is not None:
@@ -434,7 +555,13 @@ class Interpreter:
         raise InterpreterError(f'Cannot evaluate expression of type {type(expr)}')
 
 
-def run_source(source: str, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, type_check: bool = True, print_ast: bool = False):
+def run_source(source: str, 
+               input_callback: Optional[Callable[[str], str]] = None, 
+               output_callback: Optional[Callable[[str], None]] = None,
+               stop_callback: Optional[Callable[[], bool]] = None,
+               debug: bool = False, 
+               type_check: bool = True, 
+               print_ast: bool = False):
     from .lexer import tokenize
     from .parser import Parser
     from .type_checker import TypeChecker
@@ -460,7 +587,10 @@ def run_source(source: str, input_callback: Optional[Callable[[str], str]] = Non
             error_text = "\n".join(error_messages)
             raise InterpreterError(error_text)
     
-    interp = Interpreter(input_callback=input_callback, debug=debug)
+    interp = Interpreter(input_callback=input_callback, 
+                        output_callback=output_callback, 
+                        stop_callback=stop_callback,
+                        debug=debug)
     results = interp.run(prog)
     return results
 

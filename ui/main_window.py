@@ -2,7 +2,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QMenuBar, QStatusBar, QSplitter, QInputDialog, QMenu
+    QMainWindow, QWidget, QVBoxLayout, QMenuBar, QStatusBar, QSplitter, QMenu, QApplication
 )
 from .style import STYLE_QSS
 from .background import Background
@@ -16,11 +16,12 @@ from .chest_dialog import show_chest_dialog
 from lang.lexer import tokenize
 from lang.parser import Parser
 from lang.interpreter import run_source
-from lang.formatter import format_jcraft_code
+from lang.format import format_jcraft_code
 
 ASSETS = Path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
 ICON_PATHS = [ASSETS / "jcraft_logo.ico", ASSETS / "jcraft_logo.png"]
+
 
 class MainWindow(QMainWindow):
     def __init__(self, title=":JCraft IDE"):
@@ -35,6 +36,9 @@ class MainWindow(QMainWindow):
                 break
 
         self.pixel_family = load_pixel_font_family()
+        
+        # Bandera para controlar la ejecución
+        self.is_running = False
 
         self._build_ui()
         self._build_menu()
@@ -141,6 +145,7 @@ fin
     def _wire_stubs(self):
         self.output_panel.btn_compile.clicked.connect(self._on_compile)
         self.output_panel.btn_run.clicked.connect(self._on_run)
+        self.output_panel.btn_stop.clicked.connect(self._on_stop)
 
     def _on_compile(self):
         """Run lexer + parser and display tokens and AST in the output panel."""
@@ -172,29 +177,50 @@ fin
 
     def _on_run(self):
         """Execute the source via the interpreter and show results."""
+        if self.is_running:
+            return  
+            
+        self.is_running = True
+        
+        # Ocultar botón EJECUTAR y mostrar botón DETENER
+        self.output_panel.btn_run.setVisible(False)
+        self.output_panel.btn_stop.setVisible(True)
+        
         self.output_panel.clear()
         self.output_panel.append("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
         
+        def stop_callback() -> bool:
+            QApplication.processEvents()
+            return not self.is_running
+        
+        def output_callback(text: str):
+            if not self.is_running:
+                return 
+            self.output_panel.append(text)
+            QApplication.processEvents()
+        
         # Callback for cofre() that shows the Minecraft chest dialog
         def input_callback(prompt: str) -> str:
-            # Show the prompt in the output console
-            if prompt:
-                self.output_panel.append(prompt)
-            
+            if not self.is_running:
+                raise InterruptedError("Ejecución detenida por el usuario")
             # Show the Minecraft-style chest dialog
             text = show_chest_dialog(prompt, self)
+            if not self.is_running:
+                raise InterruptedError("Ejecución detenida por el usuario")
             return text
         
         try:
-            # Habilitar print_ast=True para que imprima el AST en la consola de VSCode
-            results = run_source(src, input_callback=input_callback, debug=False, print_ast=True)
-            if results:
-                for r in results:
-                    self.output_panel.append(str(r))
-            else:
-                self.output_panel.append("(sin salida)")
-            self.output_panel.append("\n[OK] Ejecución terminada.")
+            results = run_source(src, 
+                               input_callback=input_callback, 
+                               output_callback=output_callback,
+                               stop_callback=stop_callback,
+                               debug=False, 
+                               print_ast=True)
+            if self.is_running:
+                self.output_panel.append("\n[OK] Ejecución terminada.")
+        except InterruptedError as e:
+            self.output_panel.append(f"\n[DETENIDO] {e}")
         except Exception as e:
             # Mostrar el error completo con sus detalles
             error_message = str(e)
@@ -208,6 +234,17 @@ fin
             else:
                 # Otros errores se muestran normalmente
                 self.output_panel.append(f"[ERROR] {type(e).__name__}: {error_message}")
+        finally:
+            self.is_running = False
+            # Mostrar botón EJECUTAR y ocultar botón DETENER
+            self.output_panel.btn_run.setVisible(True)
+            self.output_panel.btn_stop.setVisible(False)
+    
+    def _on_stop(self):
+        """Detener la ejecución del programa."""
+        if self.is_running:
+            self.is_running = False
+            # No mostramos mensaje, el stop_callback detectará el cambio inmediatamente
 
     def _zoom_in(self):
         self.editor_panel.zoom(+1)
@@ -267,115 +304,31 @@ fin
             parent_menu.addMenu(category_menu)
     
     def _insert_snippet(self, category: str, snippet_name: str):
-        """Inserta un snippet en el editor, automáticamente dentro del main si existe"""
+        """Inserta un snippet en la posición actual del cursor"""
         from .snippets import get_snippet
         
         code = get_snippet(category, snippet_name)
         if not code:
             return
-            
-        current_text = self.editor_panel.text()
         
-        # Si el snippet es un EJEMPLO COMPLETO (ya tiene su propio main), reemplazar todo
-        if "mesa_crafteo vacío main():" in code and category == "Ejemplos":
-            self.editor_panel.set_text(code)
-            self.statusBar().showMessage(f"Ejemplo insertado: {snippet_name}", 3000)
+        # Si es una descripción (Semántica), mostrar en el status bar
+        if category == "Semántica":
+            self.statusBar().showMessage(f"ℹ {code}", 8000)
             return
         
-        # Verificar si el snippet tiene separación ###MAIN###
-        if "###MAIN###" in code:
-            parts = code.split("###MAIN###")
-            code_antes_main = parts[0].strip()
-            code_dentro_main = parts[1].strip() if len(parts) > 1 else ""
-            
-            # Buscar la posición del main UNA SOLA VEZ
-            if "mesa_crafteo vacío main():" not in current_text:
-                # No hay main, crear estructura básica
-                current_text = code_antes_main + "\n\nmesa_crafteo vacío main():\n    \nfin\n"
-            
-            # Buscar la posición exacta del main
-            main_index = current_text.find("mesa_crafteo vacío main():")
-            
-            if main_index != -1:
-                # Dividir el texto en: antes_del_main, main, después_del_main
-                antes_del_main = current_text[:main_index]
-                desde_main = current_text[main_index:]
-                
-                # Insertar la definición de función ANTES del main
-                nuevo_antes = antes_del_main + code_antes_main + "\n\n"
-                
-                # Ahora procesar la parte dentro del main
-                lineas_main = desde_main.split('\n')
-                nuevas_lineas = []
-                insertado = False
-                
-                for i, linea in enumerate(lineas_main):
-                    nuevas_lineas.append(linea)
-                    
-                    # Insertar después de la primera línea del main (la declaración)
-                    if i == 0 and "mesa_crafteo vacío main():" in linea and code_dentro_main and not insertado:
-                        # Agregar el código dentro del main con indentación
-                        for snippet_line in code_dentro_main.split('\n'):
-                            if snippet_line.strip():
-                                nuevas_lineas.append("    " + snippet_line)
-                            else:
-                                nuevas_lineas.append(snippet_line)
-                        insertado = True
-                
-                nuevo_main = '\n'.join(nuevas_lineas)
-                new_text = nuevo_antes + nuevo_main
-            else:
-                new_text = current_text
-        else:
-            # Lógica original para snippets sin separación
-            # Detectar si el snippet es una definición de función (no main)
-            es_definicion_funcion = (
-                code.strip().startswith("mesa_crafteo") and 
-                "mesa_crafteo vacío main():" not in code
-            )
-            
-            # Si el snippet es para definir función (va ANTES de main)
-            if es_definicion_funcion or "ANTES de main" in code:
-                # Insertar antes del main
-                if "mesa_crafteo vacío main():" in current_text:
-                    # Buscar la posición del main
-                    main_pos = current_text.find("mesa_crafteo vacío main():")
-                    new_text = current_text[:main_pos] + code + "\n\n" + current_text[main_pos:]
-                else:
-                    # No hay main, insertar al final
-                    new_text = current_text + "\n\n" + code
-            else:
-                # Es código normal, insertarlo DENTRO del main
-                if "mesa_crafteo vacío main():" in current_text and "fin" in current_text:
-                    # Buscar la línea después de "mesa_crafteo vacío main():"
-                    lines = current_text.split('\n')
-                    new_lines = []
-                    insertado = False
-                    
-                    for line in lines:
-                        new_lines.append(line)
-                        
-                        # Si encontramos el main y aún no hemos insertado
-                        if "mesa_crafteo vacío main():" in line and not insertado:
-                            # Insertar el código después del main, con indentación
-                            snippet_lines = code.split('\n')
-                            for snippet_line in snippet_lines:
-                                if snippet_line.strip():  # Si la línea no está vacía
-                                    new_lines.append("    " + snippet_line)
-                                else:
-                                    new_lines.append(snippet_line)
-                            insertado = True
-                    
-                    new_text = '\n'.join(new_lines)
-                else:
-                    # No hay estructura de main válida, insertar normalmente
-                    if current_text.strip():
-                        new_text = current_text + "\n\n" + code
-                    else:
-                        new_text = code
+        # Obtener la posición actual del cursor en el editor
+        cursor = self.editor_panel.editor.textCursor()
         
-        self.editor_panel.set_text(new_text)
-        self.statusBar().showMessage(f"Snippet insertado: {snippet_name}", 3000)
+        # Insertar el snippet en la posición del cursor
+        cursor.insertText(code)
+        
+        # Actualizar el cursor en el editor
+        self.editor_panel.editor.setTextCursor(cursor)
+        
+        # Dar foco al editor
+        self.editor_panel.editor.setFocus()
+        
+        self.statusBar().showMessage(f"✓ Snippet insertado: {snippet_name}", 3000)
 
     def run(self):
         self.show()

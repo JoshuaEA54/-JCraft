@@ -388,7 +388,6 @@ portal (entrada):
 - `cofre` - input (requires prompt parameter)
 - `verdadero` - true
 - `falso` - false
-- `nulo` - null
 - `y` - and
 - `o` - or
 - `no` - not

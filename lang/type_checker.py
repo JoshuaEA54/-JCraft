@@ -4,7 +4,7 @@ Validates types statically before execution
 """
 
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from .parser import (
     Program, FunctionDecl, VarDecl, Assign, Call, PrintStmt, ReturnStmt,
     IfStmt, WhileStmt, ForStmt, DoWhileStmt, SwitchStmt, BreakStmt, ContinueStmt,
@@ -22,22 +22,13 @@ class TypeCheckError(Exception):
 class TypeInfo:
     """Type information for an expression"""
     base_type: str  # 'bloques', 'texto', 'inventario', 'mapa', etc.
-    generic_params: List[str] = None  # For inventario<T> or mapa<K,V>
+    generic_params: List[str] = field(default_factory=list)  # For inventario<T> or mapa<K,V>
     
-    def __post_init__(self):
-        if self.generic_params is None:
-            self.generic_params = []
     
     def __str__(self):
         if self.generic_params:
             return f"{self.base_type}<{','.join(self.generic_params)}>"
         return self.base_type
-    
-    def __eq__(self, other):
-        if not isinstance(other, TypeInfo):
-            return False
-        return (self.base_type == other.base_type and 
-                self.generic_params == other.generic_params)
     
     def is_numeric(self):
         """Check if type is numeric"""
@@ -46,10 +37,6 @@ class TypeInfo:
     def is_comparable(self):
         """Check if type can be used in comparisons"""
         return self.base_type in ('bloques', 'coordenada', 'texto', 'glifo')
-    
-    def is_collection(self):
-        """Check if type is a collection"""
-        return self.base_type in ('inventario', 'mapa')
 
 
 class TypeChecker:
@@ -198,13 +185,12 @@ class TypeChecker:
             param_type = self.parse_type_annotation(ptype)
             self.declare_variable(pname, param_type)
         
-        # Check body
-        has_return = False
+        # Check body and detect if any return is present (including nested)
         for stmt in func.body:
             self.check_statement(stmt)
-            if isinstance(stmt, ReturnStmt):
-                has_return = True
-        
+
+        has_return = self._contains_return(func.body)
+
         # Verify non-void functions return
         if self.current_function_return_type.base_type != 'vacío' and not has_return:
             self.error(f"Function '{func.name}' must return a value of type '{self.current_function_return_type}'")
@@ -381,8 +367,6 @@ class TypeChecker:
                 if len(val) == 1:
                     return TypeInfo('glifo')
                 return TypeInfo('texto')
-            elif val is None:
-                return TypeInfo('nulo')
             return None
         
         elif isinstance(expr, VarRef):
@@ -502,8 +486,8 @@ class TypeChecker:
     def infer_list_type(self, expr: ListLiteral) -> Optional[TypeInfo]:
         """Infer type of list literal"""
         if not expr.elements:
-            # Empty list - requires type context
-            return TypeInfo('inventario', ['?'])  # Unknown type
+            # Empty list - type will be determined by context (variable declaration)
+            return TypeInfo('inventario', ['?'])
         
         # Infer type of first element
         first_type = self.infer_type(expr.elements[0])
@@ -522,7 +506,7 @@ class TypeChecker:
     def infer_map_type(self, expr: MapLiteral) -> Optional[TypeInfo]:
         """Infer type of map literal"""
         if not expr.pairs:
-            # Empty map - requires type context
+            # Empty map - type will be determined by context (variable declaration)
             return TypeInfo('mapa', ['?', '?'])
         
         # Infer types of first pair
@@ -580,6 +564,37 @@ class TypeChecker:
         else:
             self.error(f"No se puede indexar tipo '{target_type}'")
             return None
+
+    def _contains_return(self, stmts: List[ASTNode]) -> bool:
+        """Recursively check whether a list of statements contains a ReturnStmt.
+
+        This detects returns inside nested constructs (if/switch/loops) so that
+        functions which return from inside a branch are recognized as returning.
+        """
+        for stmt in stmts:
+            if isinstance(stmt, ReturnStmt):
+                return True
+
+            # If statements: check each branch body
+            if isinstance(stmt, IfStmt):
+                for _, body in stmt.branches:
+                    if self._contains_return(body):
+                        return True
+
+            # While / DoWhile / For: check body
+            if isinstance(stmt, WhileStmt) or isinstance(stmt, DoWhileStmt) or isinstance(stmt, ForStmt):
+                body = getattr(stmt, 'body', None)
+                if body and self._contains_return(body):
+                    return True
+
+            # Switch: check all case bodies
+            if isinstance(stmt, SwitchStmt):
+                for _, case_body in stmt.cases:
+                    if self._contains_return(case_body):
+                        return True
+
+            # Other compound statements (e.g., index assign or calls) can't contain returns
+        return False
     
     def types_compatible(self, expected: TypeInfo, actual: TypeInfo) -> bool:
         """Verifica si dos tipos son compatibles"""
@@ -591,11 +606,7 @@ class TypeChecker:
         if expected.base_type == 'coordenada' and actual.base_type == 'bloques':
             return True
         
-        # nulo es compatible con cualquier tipo compuesto
-        if actual.base_type == 'nulo' and expected.is_collection():
-            return True
-        
-        # Tipo desconocido '?' es compatible con cualquiera
+        # Tipo desconocido '?' es compatible con cualquiera (para listas/mapas vacíos)
         if '?' in expected.generic_params or '?' in actual.generic_params:
             return True
         
@@ -604,7 +615,7 @@ class TypeChecker:
     def print_errors(self):
         """Imprime todos los errores encontrados"""
         if not self.errors:
-            print("✅ No se encontraron errores de tipo")
+            print("No se encontraron errores de tipo")
             return
         
         print(f"Se encontraron {len(self.errors)} error(es) de tipo:\n")
