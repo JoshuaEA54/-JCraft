@@ -28,18 +28,26 @@ class InterpreterWorker(QObject):
     output_ready = Signal(str)  # Señal para enviar outputs en tiempo real
     finished = Signal()  # Señal cuando termina la ejecución
     error = Signal(str)  # Señal para errores
+    stopped = Signal()  # Señal cuando se detiene manualmente
     
     def __init__(self, source_code: str, input_callback, print_ast: bool = False):
         super().__init__()
         self.source_code = source_code
         self.input_callback = input_callback
         self.print_ast = print_ast
+        self._stop_requested = False
+    
+    def request_stop(self):
+        """Solicita detener la ejecución"""
+        self._stop_requested = True
     
     def run(self):
         """Ejecuta el código en el hilo separado"""
         try:
             # Callback para recibir outputs en tiempo real
             def output_callback(output: str):
+                if self._stop_requested:
+                    raise InterruptedError("Ejecución detenida por el usuario")
                 self.output_ready.emit(output)
             
             # Ejecutar el código
@@ -56,7 +64,14 @@ class InterpreterWorker(QObject):
             if not results:
                 self.output_ready.emit("(sin salida)")
             
-            self.finished.emit()
+            if self._stop_requested:
+                self.stopped.emit()
+            else:
+                self.finished.emit()
+        except InterruptedError as e:
+            # Ejecución detenida manualmente
+            self.error.emit(f"[DETENIDO] {e}")
+            self.stopped.emit()
         except Exception as e:
             # Manejar errores
             error_message = str(e)
@@ -192,6 +207,7 @@ fin
     def _wire_stubs(self):
         self.output_panel.btn_compile.clicked.connect(self._on_compile)
         self.output_panel.btn_run.clicked.connect(self._on_run)
+        self.output_panel.btn_stop.clicked.connect(self._on_stop)
 
     def _on_compile(self):
         """Run lexer + parser and display tokens and AST in the output panel."""
@@ -225,10 +241,15 @@ fin
         """Execute the source via the interpreter and show results."""
         # Si ya hay una ejecución en curso, no iniciar otra
         if self.is_running:
-            self.output_panel.append("[ADVERTENCIA] Ya hay una ejecución en curso")
+            self.output_panel.append("[ADVERTENCIA] Ya hay una ejecución en curso. Usa DETENER para cancelarla.")
             return
         
         self.is_running = True
+        # Ocultar botón EJECUTAR y mostrar DETENER en su lugar
+        self.output_panel.btn_run.setVisible(False)
+        self.output_panel.btn_stop.setVisible(True)
+        self.output_panel.btn_compile.setEnabled(False)
+        
         self.output_panel.clear()
         self.output_panel.append("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
@@ -255,12 +276,21 @@ fin
         self.worker.output_ready.connect(self._on_output_ready)
         self.worker.error.connect(self._on_execution_error)
         self.worker.finished.connect(self._on_execution_finished)
+        self.worker.stopped.connect(self._on_execution_stopped)
         self.worker.finished.connect(self.worker_thread.quit)
+        self.worker.stopped.connect(self.worker_thread.quit)
         self.worker.finished.connect(self.worker.deleteLater)
+        self.worker.stopped.connect(self.worker.deleteLater)
         self.worker_thread.finished.connect(self.worker_thread.deleteLater)
         
         # Iniciar el thread
         self.worker_thread.start()
+    
+    def _on_stop(self):
+        """Detiene la ejecución actual"""
+        if self.is_running and self.worker:
+            self.worker.request_stop()
+            self.output_panel.append("\n[DETENIENDO...] Esperando que termine la iteración actual...")
     
     def _on_output_ready(self, output: str):
         """Callback cuando hay output disponible del intérprete"""
@@ -273,7 +303,19 @@ fin
     def _on_execution_finished(self):
         """Callback cuando termina la ejecución"""
         self.output_panel.append("\n[OK] Ejecución terminada.")
-        self.is_running = False  # Marcar que ya no hay ejecución en curso
+        self._reset_buttons()
+    
+    def _on_execution_stopped(self):
+        """Callback cuando se detiene la ejecución manualmente"""
+        self.output_panel.append("\n[DETENIDO] Ejecución cancelada por el usuario.")
+        self._reset_buttons()
+    
+    def _reset_buttons(self):
+        """Resetea el estado de los botones después de la ejecución"""
+        self.is_running = False
+        self.output_panel.btn_stop.setVisible(False)
+        self.output_panel.btn_run.setVisible(True)
+        self.output_panel.btn_compile.setEnabled(True)
 
     def _zoom_in(self):
         self.editor_panel.zoom(+1)
