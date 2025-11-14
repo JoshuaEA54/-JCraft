@@ -28,14 +28,16 @@ class LoopLimitExceeded(InterpreterError):
 
 
 class Interpreter:
-    # Límite máximo de iteraciones para evitar bucles infinitos o extremadamente largos
     MAX_LOOP_ITERATIONS = 1_000_000
     
-    def __init__(self, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, output_callback: Optional[Callable[[str], None]] = None):
+    def __init__(self, input_callback: Optional[Callable[[str], str]] = None, 
+                 output_callback: Optional[Callable[[str], None]] = None,
+                 debug: bool = False):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, FunctionDecl] = {}
         self.results: List[str] = []
         self.input_callback = input_callback or (lambda prompt: input(prompt))
+        self.output_callback = output_callback
         self.debug = debug
         self.output_callback = output_callback  # Callback para enviar outputs en tiempo real
         self._last_output_time = 0
@@ -118,6 +120,9 @@ class Interpreter:
             val = self.evaluate(stmt.expr)
             out = str(val)
             self.results.append(out)
+            # Llamar al callback de salida inmediatamente si existe
+            if self.output_callback:
+                self.output_callback(out)
             self.debug_print('print ->', out)
             # Enviar output en tiempo real si hay callback
             if self.output_callback:
@@ -137,6 +142,8 @@ class Interpreter:
                 val = self.evaluate(stmt.args[0])
                 out = str(val)
                 self.results.append(out)
+                if self.output_callback:
+                    self.output_callback(out)
                 self.debug_print('letrero ->', val)
                 # Enviar output en tiempo real si hay callback
                 if self.output_callback:
@@ -534,7 +541,12 @@ class Interpreter:
         raise InterpreterError(f'Cannot evaluate expression of type {type(expr)}')
 
 
-def run_source(source: str, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, type_check: bool = True, print_ast: bool = False, output_callback: Optional[Callable[[str], None]] = None):
+def run_source(source: str, 
+               input_callback: Optional[Callable[[str], str]] = None, 
+               output_callback: Optional[Callable[[str], None]] = None,
+               debug: bool = False, 
+               type_check: bool = True, 
+               print_ast: bool = False):
     from .lexer import tokenize
     from .parser import Parser
     from .type_checker import TypeChecker
@@ -560,7 +572,7 @@ def run_source(source: str, input_callback: Optional[Callable[[str], str]] = Non
             error_text = "\n".join(error_messages)
             raise InterpreterError(error_text)
     
-    interp = Interpreter(input_callback=input_callback, debug=debug, output_callback=output_callback)
+    interp = Interpreter(input_callback=input_callback, output_callback=output_callback, debug=debug)
     results = interp.run(prog)
     return results
 
