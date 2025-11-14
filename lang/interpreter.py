@@ -5,6 +5,7 @@ from .parser import (
     DoWhileStmt, SwitchStmt, BreakStmt, ContinueStmt, ListLiteral, 
     MapLiteral, IndexAccess, IndexAssign
 )
+import time
 
 
 class InterpreterError(Exception):
@@ -30,12 +31,15 @@ class Interpreter:
     # Límite máximo de iteraciones para evitar bucles infinitos o extremadamente largos
     MAX_LOOP_ITERATIONS = 1_000_000
     
-    def __init__(self, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False):
+    def __init__(self, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, output_callback: Optional[Callable[[str], None]] = None):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, FunctionDecl] = {}
         self.results: List[str] = []
         self.input_callback = input_callback or (lambda prompt: input(prompt))
         self.debug = debug
+        self.output_callback = output_callback  # Callback para enviar outputs en tiempo real
+        self._last_output_time = 0
+        self._output_throttle = 0.01  # Segundos mínimos entre outputs (10ms)
 
     def _estimate_loop_iterations(self, init_val, condition, step_val):
         """
@@ -63,6 +67,18 @@ class Interpreter:
     def debug_print(self, *args):
         if self.debug:
             print('DEBUG:', *args)
+
+    def _send_output_throttled(self, output: str):
+        """Envía output al callback con throttling para evitar saturar la UI"""
+        current_time = time.time()
+        if current_time - self._last_output_time >= self._output_throttle:
+            self.output_callback(output)
+            self._last_output_time = current_time
+        else:
+            # Si estamos emitiendo muy rápido, hacer un pequeño sleep
+            time.sleep(self._output_throttle)
+            self.output_callback(output)
+            self._last_output_time = time.time()
 
     def run(self, program: Program):
         # collect declarations
@@ -103,6 +119,9 @@ class Interpreter:
             out = str(val)
             self.results.append(out)
             self.debug_print('print ->', out)
+            # Enviar output en tiempo real si hay callback
+            if self.output_callback:
+                self._send_output_throttled(out)
             return None
 
         if isinstance(stmt, ReturnStmt):
@@ -116,8 +135,12 @@ class Interpreter:
                 if len(stmt.args) != 1:
                     raise InterpreterError('letrero expects 1 argument')
                 val = self.evaluate(stmt.args[0])
-                self.results.append(str(val))
+                out = str(val)
+                self.results.append(out)
                 self.debug_print('letrero ->', val)
+                # Enviar output en tiempo real si hay callback
+                if self.output_callback:
+                    self._send_output_throttled(out)
                 return None
             if stmt.callee == 'cofre':
                 # cofre(prompt) returns texto from input callback
@@ -511,7 +534,7 @@ class Interpreter:
         raise InterpreterError(f'Cannot evaluate expression of type {type(expr)}')
 
 
-def run_source(source: str, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, type_check: bool = True, print_ast: bool = False):
+def run_source(source: str, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, type_check: bool = True, print_ast: bool = False, output_callback: Optional[Callable[[str], None]] = None):
     from .lexer import tokenize
     from .parser import Parser
     from .type_checker import TypeChecker
@@ -537,7 +560,7 @@ def run_source(source: str, input_callback: Optional[Callable[[str], str]] = Non
             error_text = "\n".join(error_messages)
             raise InterpreterError(error_text)
     
-    interp = Interpreter(input_callback=input_callback, debug=debug)
+    interp = Interpreter(input_callback=input_callback, debug=debug, output_callback=output_callback)
     results = interp.run(prog)
     return results
 
