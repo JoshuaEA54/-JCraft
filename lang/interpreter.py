@@ -22,11 +22,14 @@ class ContinueException(Exception):
 
 
 class Interpreter:
-    def __init__(self, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False):
+    def __init__(self, input_callback: Optional[Callable[[str], str]] = None, 
+                 output_callback: Optional[Callable[[str], None]] = None,
+                 debug: bool = False):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, FunctionDecl] = {}
         self.results: List[str] = []
         self.input_callback = input_callback or (lambda prompt: input(prompt))
+        self.output_callback = output_callback
         self.debug = debug
 
     def debug_print(self, *args):
@@ -71,6 +74,9 @@ class Interpreter:
             val = self.evaluate(stmt.expr)
             out = str(val)
             self.results.append(out)
+            # Llamar al callback de salida inmediatamente si existe
+            if self.output_callback:
+                self.output_callback(out)
             self.debug_print('print ->', out)
             return None
 
@@ -85,7 +91,10 @@ class Interpreter:
                 if len(stmt.args) != 1:
                     raise InterpreterError('letrero expects 1 argument')
                 val = self.evaluate(stmt.args[0])
-                self.results.append(str(val))
+                out = str(val)
+                self.results.append(out)
+                if self.output_callback:
+                    self.output_callback(out)
                 self.debug_print('letrero ->', val)
                 return None
             if stmt.callee == 'cofre':
@@ -434,7 +443,12 @@ class Interpreter:
         raise InterpreterError(f'Cannot evaluate expression of type {type(expr)}')
 
 
-def run_source(source: str, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False, type_check: bool = True, print_ast: bool = False):
+def run_source(source: str, 
+               input_callback: Optional[Callable[[str], str]] = None, 
+               output_callback: Optional[Callable[[str], None]] = None,
+               debug: bool = False, 
+               type_check: bool = True, 
+               print_ast: bool = False):
     from .lexer import tokenize
     from .parser import Parser
     from .type_checker import TypeChecker
@@ -460,7 +474,7 @@ def run_source(source: str, input_callback: Optional[Callable[[str], str]] = Non
             error_text = "\n".join(error_messages)
             raise InterpreterError(error_text)
     
-    interp = Interpreter(input_callback=input_callback, debug=debug)
+    interp = Interpreter(input_callback=input_callback, output_callback=output_callback, debug=debug)
     results = interp.run(prog)
     return results
 

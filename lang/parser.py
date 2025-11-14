@@ -173,6 +173,12 @@ class Parser:
         if not tok:
             raise ParserError(f"Expected {ttype} but got EOF")
         if tok.type != ttype:
+            if ttype == "IDENT" and tok.type == "KEYWORD":
+                raise ParserError(
+                    f"No puedes usar '{tok.value}' como nombre de variable. "
+                    f"'{tok.value}' es una palabra reservada del lenguaje. "
+                    f"(línea {tok.line}, columna {tok.column})"
+                )
             raise ParserError(
                 f"Expected {ttype} but got {tok.type} at {tok.line}:{tok.column}"
             )

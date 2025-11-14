@@ -176,24 +176,26 @@ fin
         self.output_panel.append("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
         
+        # Callback para salida inmediata (letrero)
+        def output_callback(text: str):
+            self.output_panel.append(text)
+            # Forzar actualización de la interfaz para mostrar inmediatamente
+            from PySide6.QtWidgets import QApplication
+            QApplication.processEvents()
+        
         # Callback for cofre() that shows the Minecraft chest dialog
         def input_callback(prompt: str) -> str:
-            # Show the prompt in the output console
-            if prompt:
-                self.output_panel.append(prompt)
-            
             # Show the Minecraft-style chest dialog
             text = show_chest_dialog(prompt, self)
             return text
         
         try:
             # Habilitar print_ast=True para que imprima el AST en la consola de VSCode
-            results = run_source(src, input_callback=input_callback, debug=False, print_ast=True)
-            if results:
-                for r in results:
-                    self.output_panel.append(str(r))
-            else:
-                self.output_panel.append("(sin salida)")
+            run_source(src, 
+                               input_callback=input_callback, 
+                               output_callback=output_callback,
+                               debug=False, 
+                               print_ast=True)
             self.output_panel.append("\n[OK] Ejecución terminada.")
         except Exception as e:
             # Mostrar el error completo con sus detalles
@@ -267,115 +269,31 @@ fin
             parent_menu.addMenu(category_menu)
     
     def _insert_snippet(self, category: str, snippet_name: str):
-        """Inserta un snippet en el editor, automáticamente dentro del main si existe"""
+        """Inserta un snippet en la posición actual del cursor"""
         from .snippets import get_snippet
         
         code = get_snippet(category, snippet_name)
         if not code:
             return
-            
-        current_text = self.editor_panel.text()
         
-        # Si el snippet es un EJEMPLO COMPLETO (ya tiene su propio main), reemplazar todo
-        if "mesa_crafteo vacío main():" in code and category == "Ejemplos":
-            self.editor_panel.set_text(code)
-            self.statusBar().showMessage(f"Ejemplo insertado: {snippet_name}", 3000)
+        # Si es una descripción (Semántica), mostrar en el status bar
+        if category == "Semántica":
+            self.statusBar().showMessage(f"ℹ {code}", 8000)
             return
         
-        # Verificar si el snippet tiene separación ###MAIN###
-        if "###MAIN###" in code:
-            parts = code.split("###MAIN###")
-            code_antes_main = parts[0].strip()
-            code_dentro_main = parts[1].strip() if len(parts) > 1 else ""
-            
-            # Buscar la posición del main UNA SOLA VEZ
-            if "mesa_crafteo vacío main():" not in current_text:
-                # No hay main, crear estructura básica
-                current_text = code_antes_main + "\n\nmesa_crafteo vacío main():\n    \nfin\n"
-            
-            # Buscar la posición exacta del main
-            main_index = current_text.find("mesa_crafteo vacío main():")
-            
-            if main_index != -1:
-                # Dividir el texto en: antes_del_main, main, después_del_main
-                antes_del_main = current_text[:main_index]
-                desde_main = current_text[main_index:]
-                
-                # Insertar la definición de función ANTES del main
-                nuevo_antes = antes_del_main + code_antes_main + "\n\n"
-                
-                # Ahora procesar la parte dentro del main
-                lineas_main = desde_main.split('\n')
-                nuevas_lineas = []
-                insertado = False
-                
-                for i, linea in enumerate(lineas_main):
-                    nuevas_lineas.append(linea)
-                    
-                    # Insertar después de la primera línea del main (la declaración)
-                    if i == 0 and "mesa_crafteo vacío main():" in linea and code_dentro_main and not insertado:
-                        # Agregar el código dentro del main con indentación
-                        for snippet_line in code_dentro_main.split('\n'):
-                            if snippet_line.strip():
-                                nuevas_lineas.append("    " + snippet_line)
-                            else:
-                                nuevas_lineas.append(snippet_line)
-                        insertado = True
-                
-                nuevo_main = '\n'.join(nuevas_lineas)
-                new_text = nuevo_antes + nuevo_main
-            else:
-                new_text = current_text
-        else:
-            # Lógica original para snippets sin separación
-            # Detectar si el snippet es una definición de función (no main)
-            es_definicion_funcion = (
-                code.strip().startswith("mesa_crafteo") and 
-                "mesa_crafteo vacío main():" not in code
-            )
-            
-            # Si el snippet es para definir función (va ANTES de main)
-            if es_definicion_funcion or "ANTES de main" in code:
-                # Insertar antes del main
-                if "mesa_crafteo vacío main():" in current_text:
-                    # Buscar la posición del main
-                    main_pos = current_text.find("mesa_crafteo vacío main():")
-                    new_text = current_text[:main_pos] + code + "\n\n" + current_text[main_pos:]
-                else:
-                    # No hay main, insertar al final
-                    new_text = current_text + "\n\n" + code
-            else:
-                # Es código normal, insertarlo DENTRO del main
-                if "mesa_crafteo vacío main():" in current_text and "fin" in current_text:
-                    # Buscar la línea después de "mesa_crafteo vacío main():"
-                    lines = current_text.split('\n')
-                    new_lines = []
-                    insertado = False
-                    
-                    for line in lines:
-                        new_lines.append(line)
-                        
-                        # Si encontramos el main y aún no hemos insertado
-                        if "mesa_crafteo vacío main():" in line and not insertado:
-                            # Insertar el código después del main, con indentación
-                            snippet_lines = code.split('\n')
-                            for snippet_line in snippet_lines:
-                                if snippet_line.strip():  # Si la línea no está vacía
-                                    new_lines.append("    " + snippet_line)
-                                else:
-                                    new_lines.append(snippet_line)
-                            insertado = True
-                    
-                    new_text = '\n'.join(new_lines)
-                else:
-                    # No hay estructura de main válida, insertar normalmente
-                    if current_text.strip():
-                        new_text = current_text + "\n\n" + code
-                    else:
-                        new_text = code
+        # Obtener la posición actual del cursor en el editor
+        cursor = self.editor_panel.editor.textCursor()
         
-        self.editor_panel.set_text(new_text)
-        self.statusBar().showMessage(f"Snippet insertado: {snippet_name}", 3000)
+        # Insertar el snippet en la posición del cursor
+        cursor.insertText(code)
+        
+        # Actualizar el cursor en el editor
+        self.editor_panel.editor.setTextCursor(cursor)
+        
+        # Dar foco al editor
+        self.editor_panel.editor.setFocus()
+        
+        self.statusBar().showMessage(f"✓ Snippet insertado: {snippet_name}", 3000)
 
     def run(self):
         self.show()

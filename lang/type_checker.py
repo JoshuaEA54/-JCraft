@@ -198,13 +198,12 @@ class TypeChecker:
             param_type = self.parse_type_annotation(ptype)
             self.declare_variable(pname, param_type)
         
-        # Check body
-        has_return = False
+        # Check body and detect if any return is present (including nested)
         for stmt in func.body:
             self.check_statement(stmt)
-            if isinstance(stmt, ReturnStmt):
-                has_return = True
-        
+
+        has_return = self._contains_return(func.body)
+
         # Verify non-void functions return
         if self.current_function_return_type.base_type != 'vacío' and not has_return:
             self.error(f"Function '{func.name}' must return a value of type '{self.current_function_return_type}'")
@@ -580,6 +579,37 @@ class TypeChecker:
         else:
             self.error(f"No se puede indexar tipo '{target_type}'")
             return None
+
+    def _contains_return(self, stmts: List[ASTNode]) -> bool:
+        """Recursively check whether a list of statements contains a ReturnStmt.
+
+        This detects returns inside nested constructs (if/switch/loops) so that
+        functions which return from inside a branch are recognized as returning.
+        """
+        for stmt in stmts:
+            if isinstance(stmt, ReturnStmt):
+                return True
+
+            # If statements: check each branch body
+            if isinstance(stmt, IfStmt):
+                for _, body in stmt.branches:
+                    if self._contains_return(body):
+                        return True
+
+            # While / DoWhile / For: check body
+            if isinstance(stmt, WhileStmt) or isinstance(stmt, DoWhileStmt) or isinstance(stmt, ForStmt):
+                body = getattr(stmt, 'body', None)
+                if body and self._contains_return(body):
+                    return True
+
+            # Switch: check all case bodies
+            if isinstance(stmt, SwitchStmt):
+                for _, case_body in stmt.cases:
+                    if self._contains_return(case_body):
+                        return True
+
+            # Other compound statements (e.g., index assign or calls) can't contain returns
+        return False
     
     def types_compatible(self, expected: TypeInfo, actual: TypeInfo) -> bool:
         """Verifica si dos tipos son compatibles"""
