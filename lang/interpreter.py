@@ -32,12 +32,14 @@ class Interpreter:
     
     def __init__(self, input_callback: Optional[Callable[[str], str]] = None, 
                  output_callback: Optional[Callable[[str], None]] = None,
+                 stop_callback: Optional[Callable[[], bool]] = None,
                  debug: bool = False):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, FunctionDecl] = {}
         self.results: List[str] = []
         self.input_callback = input_callback or (lambda prompt: input(prompt))
         self.output_callback = output_callback
+        self.stop_callback = stop_callback 
         self.debug = debug
         self.output_callback = output_callback  # Callback para enviar outputs en tiempo real
         self._last_output_time = 0
@@ -232,6 +234,10 @@ class Interpreter:
             # spawner (cond): ... romper;
             iteration_count = 0
             while True:
+                # Verificar si se debe detener
+                if self.stop_callback and self.stop_callback():
+                    raise InterruptedError("Ejecución detenida por el usuario")
+                
                 iteration_count += 1
                 if iteration_count > self.MAX_LOOP_ITERATIONS:
                     raise LoopLimitExceeded(
@@ -286,6 +292,10 @@ class Interpreter:
             # loop con validación de respaldo
             iteration_count = 0
             while True:
+                # Verificar si se debe detener
+                if self.stop_callback and self.stop_callback():
+                    raise InterruptedError("Ejecución detenida por el usuario")
+                
                 iteration_count += 1
                 if iteration_count > self.MAX_LOOP_ITERATIONS:
                     raise LoopLimitExceeded(
@@ -314,6 +324,10 @@ class Interpreter:
             # creeper: ... boom (cond);
             iteration_count = 0
             while True:
+                # Verificar si se debe detener
+                if self.stop_callback and self.stop_callback():
+                    raise InterruptedError("Ejecución detenida por el usuario")
+                
                 iteration_count += 1
                 if iteration_count > self.MAX_LOOP_ITERATIONS:
                     raise LoopLimitExceeded(
@@ -544,6 +558,7 @@ class Interpreter:
 def run_source(source: str, 
                input_callback: Optional[Callable[[str], str]] = None, 
                output_callback: Optional[Callable[[str], None]] = None,
+               stop_callback: Optional[Callable[[], bool]] = None,
                debug: bool = False, 
                type_check: bool = True, 
                print_ast: bool = False):
@@ -572,7 +587,10 @@ def run_source(source: str,
             error_text = "\n".join(error_messages)
             raise InterpreterError(error_text)
     
-    interp = Interpreter(input_callback=input_callback, output_callback=output_callback, debug=debug)
+    interp = Interpreter(input_callback=input_callback, 
+                        output_callback=output_callback, 
+                        stop_callback=stop_callback,
+                        debug=debug)
     results = interp.run(prog)
     return results
 
