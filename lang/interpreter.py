@@ -122,13 +122,9 @@ class Interpreter:
             val = self.evaluate(stmt.expr)
             out = str(val)
             self.results.append(out)
-            # Llamar al callback de salida inmediatamente si existe
-            if self.output_callback:
-                self.output_callback(out)
-            self.debug_print('print ->', out)
-            # Enviar output en tiempo real si hay callback
             if self.output_callback:
                 self._send_output_throttled(out)
+            self.debug_print('print ->', out)
             return None
 
         if isinstance(stmt, ReturnStmt):
@@ -145,11 +141,8 @@ class Interpreter:
                 out = str(val)
                 self.results.append(out)
                 if self.output_callback:
-                    self.output_callback(out)
-                self.debug_print('letrero ->', val)
-                # Enviar output en tiempo real si hay callback
-                if self.output_callback:
                     self._send_output_throttled(out)
+                self.debug_print('letrero ->', val)
                 return None
             if stmt.callee == 'cofre':
                 # cofre(prompt) returns texto from input callback
