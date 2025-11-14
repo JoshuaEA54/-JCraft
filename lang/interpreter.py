@@ -21,13 +21,44 @@ class ContinueException(Exception):
     pass
 
 
+class LoopLimitExceeded(InterpreterError):
+    """Exception raised when a loop exceeds the maximum iteration limit"""
+    pass
+
+
 class Interpreter:
+    # Límite máximo de iteraciones para evitar bucles infinitos o extremadamente largos
+    MAX_LOOP_ITERATIONS = 1_000_000
+    
     def __init__(self, input_callback: Optional[Callable[[str], str]] = None, debug: bool = False):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, FunctionDecl] = {}
         self.results: List[str] = []
         self.input_callback = input_callback or (lambda prompt: input(prompt))
         self.debug = debug
+
+    def _estimate_loop_iterations(self, init_val, condition, step_val):
+        """
+        Estimate the number of iterations a for loop will take.
+        Returns estimated iterations or None if cannot determine.
+        """
+        try:
+            # Intentar extraer información del bucle for común: i = 0; i < N; i += step
+            if not isinstance(init_val, (int, float)):
+                return None
+            if not isinstance(step_val, (int, float)):
+                return None
+            
+            # Calcular límite basado en la condición
+            # Nota: esto es una estimación simplificada
+            if step_val == 0:
+                return float('inf')  # Bucle infinito
+            
+            # Si step es negativo y init es menor, será infinito
+            # Si step es positivo y la condición no avanza, será infinito
+            return None  # No podemos determinar con certeza
+        except:
+            return None
 
     def debug_print(self, *args):
         if self.debug:
@@ -169,7 +200,13 @@ class Interpreter:
 
         if isinstance(stmt, WhileStmt):
             # spawner (cond): ... romper;
+            iteration_count = 0
             while True:
+                iteration_count += 1
+                if iteration_count > self.MAX_LOOP_ITERATIONS:
+                    raise LoopLimitExceeded(
+                        f'While loop exceeded {self.MAX_LOOP_ITERATIONS:,} iterations'
+                    )
                 cond_val = self.evaluate(stmt.condition)
                 if not bool(cond_val):
                     break
@@ -188,8 +225,42 @@ class Interpreter:
             # execute init
             if stmt.init:
                 self.execute_statement(stmt.init)
-            # loop
+            
+            # Pre-validación: intentar detectar rangos problemáticos
+            try:
+                # Verificar la condición inicial
+                initial_cond = self.evaluate(stmt.condition)
+                
+                # Si la condición usa operadores de comparación con literales grandes
+                if isinstance(stmt.condition, ExprBin):
+                    right_val = self.evaluate(stmt.condition.right)
+                    # Detectar límites extremadamente grandes
+                    if isinstance(right_val, (int, float)) and abs(right_val) > self.MAX_LOOP_ITERATIONS:
+                        # Obtener el valor inicial de la variable del loop
+                        if isinstance(stmt.condition.left, VarRef):
+                            var_name = stmt.condition.left.name
+                            if var_name in self.variables:
+                                start_val = self.variables[var_name]
+                                if isinstance(start_val, (int, float)):
+                                    # Calcular iteraciones estimadas
+                                    diff = abs(right_val - start_val)
+                                    if diff > self.MAX_LOOP_ITERATIONS:
+                                        raise LoopLimitExceeded(
+                                            f'For loop range too large: {diff:,} iterations (max: {self.MAX_LOOP_ITERATIONS:,})'
+                                        )
+            except LoopLimitExceeded:
+                raise
+            except:
+                pass  # No pudimos validar, continuar con ejecución normal
+            
+            # loop con validación de respaldo
+            iteration_count = 0
             while True:
+                iteration_count += 1
+                if iteration_count > self.MAX_LOOP_ITERATIONS:
+                    raise LoopLimitExceeded(
+                        f'For loop exceeded {self.MAX_LOOP_ITERATIONS:,} iterations'
+                    )
                 cond_val = self.evaluate(stmt.condition)
                 if not bool(cond_val):
                     break
@@ -211,7 +282,13 @@ class Interpreter:
 
         if isinstance(stmt, DoWhileStmt):
             # creeper: ... boom (cond);
+            iteration_count = 0
             while True:
+                iteration_count += 1
+                if iteration_count > self.MAX_LOOP_ITERATIONS:
+                    raise LoopLimitExceeded(
+                        f'Do-while loop exceeded {self.MAX_LOOP_ITERATIONS:,} iterations'
+                    )
                 try:
                     rv = self.execute_block(stmt.body)
                     if rv is not None:
