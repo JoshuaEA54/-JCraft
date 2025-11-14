@@ -1,5 +1,5 @@
 from pathlib import Path
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QThread, Signal, QObject
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QMenuBar, QStatusBar, QSplitter, QInputDialog, QMenu
@@ -22,6 +22,52 @@ ASSETS = Path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
 ICON_PATHS = [ASSETS / "jcraft_logo.ico", ASSETS / "jcraft_logo.png"]
 
+
+class InterpreterWorker(QObject):
+    """Worker para ejecutar el intérprete en un hilo separado"""
+    output_ready = Signal(str)  # Señal para enviar outputs en tiempo real
+    finished = Signal()  # Señal cuando termina la ejecución
+    error = Signal(str)  # Señal para errores
+    
+    def __init__(self, source_code: str, input_callback, print_ast: bool = False):
+        super().__init__()
+        self.source_code = source_code
+        self.input_callback = input_callback
+        self.print_ast = print_ast
+    
+    def run(self):
+        """Ejecuta el código en el hilo separado"""
+        try:
+            # Callback para recibir outputs en tiempo real
+            def output_callback(output: str):
+                self.output_ready.emit(output)
+            
+            # Ejecutar el código
+            results = run_source(
+                self.source_code, 
+                input_callback=self.input_callback, 
+                debug=False, 
+                print_ast=self.print_ast,
+                output_callback=output_callback
+            )
+            
+            # Si hay resultados que no se enviaron por el callback, enviarlos ahora
+            # (esto normalmente no debería pasar porque todos los letreros ya se enviaron)
+            if not results:
+                self.output_ready.emit("(sin salida)")
+            
+            self.finished.emit()
+        except Exception as e:
+            # Manejar errores
+            error_message = str(e)
+            if "\n" in error_message:
+                error_lines = ["[ERROR]"] + [line for line in error_message.split("\n") if line.strip()]
+                self.error.emit("\n".join(error_lines))
+            else:
+                self.error.emit(f"[ERROR] {type(e).__name__}: {error_message}")
+            self.finished.emit()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, title=":JCraft IDE"):
         super().__init__()
@@ -35,6 +81,11 @@ class MainWindow(QMainWindow):
                 break
 
         self.pixel_family = load_pixel_font_family()
+        
+        # Threading para ejecución
+        self.worker_thread = None
+        self.worker = None
+        self.is_running = False  # Flag para saber si hay ejecución en curso
 
         self._build_ui()
         self._build_menu()
@@ -172,6 +223,12 @@ fin
 
     def _on_run(self):
         """Execute the source via the interpreter and show results."""
+        # Si ya hay una ejecución en curso, no iniciar otra
+        if self.is_running:
+            self.output_panel.append("[ADVERTENCIA] Ya hay una ejecución en curso")
+            return
+        
+        self.is_running = True
         self.output_panel.clear()
         self.output_panel.append("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
@@ -186,28 +243,37 @@ fin
             text = show_chest_dialog(prompt, self)
             return text
         
-        try:
-            # Habilitar print_ast=True para que imprima el AST en la consola de VSCode
-            results = run_source(src, input_callback=input_callback, debug=False, print_ast=True)
-            if results:
-                for r in results:
-                    self.output_panel.append(str(r))
-            else:
-                self.output_panel.append("(sin salida)")
-            self.output_panel.append("\n[OK] Ejecución terminada.")
-        except Exception as e:
-            # Mostrar el error completo con sus detalles
-            error_message = str(e)
-            
-            # Si es un error del type checker, viene formateado con saltos de línea
-            if "\n" in error_message:
-                self.output_panel.append("[ERROR]")
-                for line in error_message.split("\n"):
-                    if line.strip():  # Solo mostrar líneas no vacías
-                        self.output_panel.append(line)
-            else:
-                # Otros errores se muestran normalmente
-                self.output_panel.append(f"[ERROR] {type(e).__name__}: {error_message}")
+        # Crear el worker y el thread
+        self.worker = InterpreterWorker(src, input_callback, print_ast=True)
+        self.worker_thread = QThread()
+        
+        # Mover el worker al thread
+        self.worker.moveToThread(self.worker_thread)
+        
+        # Conectar señales
+        self.worker_thread.started.connect(self.worker.run)
+        self.worker.output_ready.connect(self._on_output_ready)
+        self.worker.error.connect(self._on_execution_error)
+        self.worker.finished.connect(self._on_execution_finished)
+        self.worker.finished.connect(self.worker_thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.worker_thread.finished.connect(self.worker_thread.deleteLater)
+        
+        # Iniciar el thread
+        self.worker_thread.start()
+    
+    def _on_output_ready(self, output: str):
+        """Callback cuando hay output disponible del intérprete"""
+        self.output_panel.append(output)
+    
+    def _on_execution_error(self, error_msg: str):
+        """Callback cuando hay un error en la ejecución"""
+        self.output_panel.append(error_msg)
+    
+    def _on_execution_finished(self):
+        """Callback cuando termina la ejecución"""
+        self.output_panel.append("\n[OK] Ejecución terminada.")
+        self.is_running = False  # Marcar que ya no hay ejecución en curso
 
     def _zoom_in(self):
         self.editor_panel.zoom(+1)
