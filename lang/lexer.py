@@ -6,7 +6,7 @@ KEYWORDS = {
     'cultivar', 'cosechar', 'observador', 'comparador', 'dispensador',
     'creeper', 'boom', 'portal', 'caso', 'defecto', 'salir_portal',
     'spawner', 'romper', 'mesa_crafteo', 'craftear', 'letrero', 'cofre',
-    'verdadero', 'falso', 'nulo', 'bloques', 'coordenada', 'texto',
+    'verdadero', 'falso', 'bloques', 'coordenada', 'texto',
     'redstone', 'glifo', 'inventario', 'mapa', 'vacío', 'y', 'o', 'no',
     'fin'
 }
@@ -83,9 +83,6 @@ class Lexer:
                         continue
                     if low == 'falso':
                         tokens.append(Token('BOOL', False, line_num, col))
-                        continue
-                    if low == 'nulo':
-                        tokens.append(Token('NULL', None, line_num, col))
                         continue
                     tokens.append(Token('KEYWORD', low, line_num, col))
                     continue
