@@ -13,17 +13,14 @@ class InterpreterError(Exception):
 
 
 class BreakException(Exception):
-    """Control flow exception for break statement"""
     pass
 
 
 class ContinueException(Exception):
-    """Control flow exception for continue statement"""
     pass
 
 
 class LoopLimitExceeded(InterpreterError):
-    """Exception raised when a loop exceeds the maximum iteration limit"""
     pass
 
 
@@ -41,30 +38,21 @@ class Interpreter:
         self.output_callback = output_callback
         self.stop_callback = stop_callback 
         self.debug = debug
-        self.output_callback = output_callback  # Callback para enviar outputs en tiempo real
+        self.output_callback = output_callback 
         self._last_output_time = 0
-        self._output_throttle = 0.01  # Segundos mínimos entre outputs (10ms)
+        self._output_throttle = 0.01  
 
     def _estimate_loop_iterations(self, init_val, condition, step_val):
-        """
-        Estimate the number of iterations a for loop will take.
-        Returns estimated iterations or None if cannot determine.
-        """
         try:
-            # Intentar extraer información del bucle for común: i = 0; i < N; i += step
             if not isinstance(init_val, (int, float)):
                 return None
             if not isinstance(step_val, (int, float)):
                 return None
             
-            # Calcular límite basado en la condición
-            # Nota: esto es una estimación simplificada
             if step_val == 0:
-                return float('inf')  # Bucle infinito
+                return float('inf')  
             
-            # Si step es negativo y init es menor, será infinito
-            # Si step es positivo y la condición no avanza, será infinito
-            return None  # No podemos determinar con certeza
+            return None  
         except:
             return None
 
@@ -73,19 +61,16 @@ class Interpreter:
             print('DEBUG:', *args)
 
     def _send_output_throttled(self, output: str):
-        """Envía output al callback con throttling para evitar saturar la UI"""
         current_time = time.time()
         if current_time - self._last_output_time >= self._output_throttle:
             self.output_callback(output)
             self._last_output_time = current_time
         else:
-            # Si estamos emitiendo muy rápido, hacer un pequeño sleep
             time.sleep(self._output_throttle)
             self.output_callback(output)
             self._last_output_time = time.time()
 
     def run(self, program: Program):
-        # collect declarations
         for decl in program.declarations:
             if isinstance(decl, FunctionDecl):
                 self.functions[decl.name] = decl
@@ -95,17 +80,13 @@ class Interpreter:
                 self.variables[decl.name] = val
                 self.debug_print(f"Global var {decl.name} = {val}")
             else:
-                # top-level statement (not allowed by spec) — try to execute
                 self.execute_statement(decl)
 
-        # find and call main
         if 'main' not in self.functions:
             raise InterpreterError('main function not found')
         main_fn = self.functions['main']
-        # main must be vacío and no params
         if main_fn.params and len(main_fn.params) > 0:
             raise InterpreterError('main must not have parameters')
-        # execute main
         self.execute_block(main_fn.body)
         return self.results
 
@@ -117,16 +98,13 @@ class Interpreter:
         return None
 
     def execute_statement(self, stmt: Any):
-        # dispatch based on node type
         if isinstance(stmt, PrintStmt):
             val = self.evaluate(stmt.expr)
             out = str(val)
             self.results.append(out)
-            # Llamar al callback de salida inmediatamente si existe
             if self.output_callback:
                 self.output_callback(out)
             self.debug_print('print ->', out)
-            # Enviar output en tiempo real si hay callback
             if self.output_callback:
                 self._send_output_throttled(out)
             return None
@@ -137,7 +115,6 @@ class Interpreter:
             return val
 
         if isinstance(stmt, Call):
-            # builtins: letrero, cofre, length, push, pop, tiene
             if stmt.callee == 'letrero':
                 if len(stmt.args) != 1:
                     raise InterpreterError('letrero expects 1 argument')
@@ -147,12 +124,10 @@ class Interpreter:
                 if self.output_callback:
                     self.output_callback(out)
                 self.debug_print('letrero ->', val)
-                # Enviar output en tiempo real si hay callback
                 if self.output_callback:
                     self._send_output_throttled(out)
                 return None
             if stmt.callee == 'cofre':
-                # cofre(prompt) returns texto from input callback
                 if len(stmt.args) != 1:
                     raise InterpreterError('cofre expects exactly 1 argument (prompt text)')
                 prompt_val = self.evaluate(stmt.args[0])
@@ -160,7 +135,6 @@ class Interpreter:
                 value = self.input_callback(prompt)
                 return value
             if stmt.callee == 'push':
-                # push(lista, elemento)
                 if len(stmt.args) != 2:
                     raise InterpreterError('push expects 2 arguments (list, element)')
                 arr = self.evaluate(stmt.args[0])
@@ -171,7 +145,6 @@ class Interpreter:
                 self.debug_print(f'push -> {arr}')
                 return None
             if stmt.callee == 'pop':
-                # pop(lista) - removes and returns last element
                 if len(stmt.args) != 1:
                     raise InterpreterError('pop expects 1 argument (list)')
                 arr = self.evaluate(stmt.args[0])
@@ -182,7 +155,6 @@ class Interpreter:
                 val = arr.pop()
                 self.debug_print(f'pop -> {val}')
                 return val
-            # user function call
             return self.call_function(stmt.callee, stmt.args)
 
         if isinstance(stmt, Assign):
@@ -192,7 +164,6 @@ class Interpreter:
             return None
         
         if isinstance(stmt, IndexAssign):
-            # xs[i] = value or m[k] = value
             target = self.evaluate(stmt.target)
             index = self.evaluate(stmt.index)
             value = self.evaluate(stmt.value)
@@ -210,17 +181,14 @@ class Interpreter:
             return None
 
         if isinstance(stmt, FunctionDecl):
-            # already handled at top-level, but support nested
             self.functions[stmt.name] = stmt
             self.debug_print(f"function {stmt.name} defined")
             return None
 
         if isinstance(stmt, IfStmt):
-            # branches: list of (cond_expr or None, stmts)
             for cond_expr, body in stmt.branches:
                 take = False
                 if cond_expr is None:
-                    # else branch
                     take = True
                 else:
                     val = self.evaluate(cond_expr)
@@ -231,10 +199,8 @@ class Interpreter:
             return None
 
         if isinstance(stmt, WhileStmt):
-            # spawner (cond): ... romper;
             iteration_count = 0
             while True:
-                # Verificar si se debe detener
                 if self.stop_callback and self.stop_callback():
                     raise InterruptedError("Ejecución detenida por el usuario")
                 
@@ -257,28 +223,20 @@ class Interpreter:
             return None
 
         if isinstance(stmt, ForStmt):
-            # cultivar (init; cond; step): ... cosechar;
-            # execute init
             if stmt.init:
                 self.execute_statement(stmt.init)
             
-            # Pre-validación: intentar detectar rangos problemáticos
             try:
-                # Verificar la condición inicial
                 initial_cond = self.evaluate(stmt.condition)
                 
-                # Si la condición usa operadores de comparación con literales grandes
                 if isinstance(stmt.condition, ExprBin):
                     right_val = self.evaluate(stmt.condition.right)
-                    # Detectar límites extremadamente grandes
                     if isinstance(right_val, (int, float)) and abs(right_val) > self.MAX_LOOP_ITERATIONS:
-                        # Obtener el valor inicial de la variable del loop
                         if isinstance(stmt.condition.left, VarRef):
                             var_name = stmt.condition.left.name
                             if var_name in self.variables:
                                 start_val = self.variables[var_name]
                                 if isinstance(start_val, (int, float)):
-                                    # Calcular iteraciones estimadas
                                     diff = abs(right_val - start_val)
                                     if diff > self.MAX_LOOP_ITERATIONS:
                                         raise LoopLimitExceeded(
@@ -287,12 +245,10 @@ class Interpreter:
             except LoopLimitExceeded:
                 raise
             except:
-                pass  # No pudimos validar, continuar con ejecución normal
+                pass
             
-            # loop con validación de respaldo
             iteration_count = 0
             while True:
-                # Verificar si se debe detener
                 if self.stop_callback and self.stop_callback():
                     raise InterruptedError("Ejecución detenida por el usuario")
                 
@@ -311,8 +267,7 @@ class Interpreter:
                 except BreakException:
                     break
                 except ContinueException:
-                    pass  # continue to step
-                # execute step (puede ser Assign o expresión)
+                    pass
                 if stmt.step:
                     if isinstance(stmt.step, Assign):
                         self.execute_statement(stmt.step)
@@ -321,10 +276,8 @@ class Interpreter:
             return None
 
         if isinstance(stmt, DoWhileStmt):
-            # creeper: ... boom (cond);
             iteration_count = 0
             while True:
-                # Verificar si se debe detener
                 if self.stop_callback and self.stop_callback():
                     raise InterruptedError("Ejecución detenida por el usuario")
                 
@@ -340,20 +293,18 @@ class Interpreter:
                 except BreakException:
                     break
                 except ContinueException:
-                    pass  # continue to condition check
+                    pass
                 cond_val = self.evaluate(stmt.condition)
                 if not bool(cond_val):
                     break
             return None
 
         if isinstance(stmt, SwitchStmt):
-            # portal (expr): caso ... defecto ... salir_portal;
             switch_val = self.evaluate(stmt.expr)
             matched = False
             try:
                 for case_val_expr, case_body in stmt.cases:
                     if case_val_expr is None:
-                        # defecto (default)
                         if not matched:
                             rv = self.execute_block(case_body)
                             if rv is not None:
@@ -366,9 +317,9 @@ class Interpreter:
                             if rv is not None:
                                 return rv
                             matched = True
-                            break  # no fall-through by default
+                            break
             except BreakException:
-                pass  # break out of switch
+                pass
             return None
 
         if isinstance(stmt, BreakStmt):
@@ -383,18 +334,13 @@ class Interpreter:
         if name not in self.functions:
             raise InterpreterError(f'Function {name} not defined')
         fn: FunctionDecl = self.functions[name]
-        # evaluate args
         args = [self.evaluate(e) for e in arg_exprs]
-        # check param length
         if len(args) != len(fn.params):
             raise InterpreterError(f'Function {name} expects {len(fn.params)} args, got {len(args)}')
-        # setup local scope
         old_vars = self.variables.copy()
         for (ptype, pname), aval in zip(fn.params, args):
             self.variables[pname] = aval
-        # execute body
         rv = self.execute_block(fn.body)
-        # restore
         self.variables = old_vars
         return rv
 
@@ -409,15 +355,12 @@ class Interpreter:
             return self.variables[expr.name]
         
         if isinstance(expr, ListLiteral):
-            # [1, 2, 3] -> Python list
             return [self.evaluate(e) for e in expr.elements]
         
         if isinstance(expr, MapLiteral):
-            # {"a": 1, "b": 2} -> Python dict
             return {self.evaluate(k): self.evaluate(v) for k, v in expr.pairs}
         
         if isinstance(expr, IndexAccess):
-            # xs[i] or m[k]
             target = self.evaluate(expr.target)
             index = self.evaluate(expr.index)
             try:
@@ -426,10 +369,8 @@ class Interpreter:
                 raise InterpreterError(f"Index access error: {e}")
         
         if isinstance(expr, Call):
-            # Si es una llamada que retorna algo (como cofre o una función con return)
             callee = expr.callee
             
-            # === Funciones de conversión de tipo ===
             if callee == 'to_bloques':
                 if len(expr.args) != 1:
                     raise InterpreterError('to_bloques expects 1 argument')
@@ -474,7 +415,6 @@ class Interpreter:
                     return val
                 raise InterpreterError(f"El valor '{val}' no es un glifo válido (carácter único)")
             
-            # === Otras funciones nativas ===
             if callee == 'cofre':
                 if len(expr.args) != 1:
                     raise InterpreterError('cofre expects exactly 1 argument (prompt text)')
@@ -483,7 +423,6 @@ class Interpreter:
                 value = self.input_callback(prompt)
                 return value
             if callee == 'length':
-                # length(lista o mapa) -> longitud
                 if len(expr.args) != 1:
                     raise InterpreterError('length expects 1 argument')
                 val = self.evaluate(expr.args[0])
@@ -491,7 +430,6 @@ class Interpreter:
                     raise InterpreterError('length expects a list or map')
                 return len(val)
             if callee == 'tiene':
-                # tiene(mapa, clave) -> redstone (bool)
                 if len(expr.args) != 2:
                     raise InterpreterError('tiene expects 2 arguments (map, key)')
                 m = self.evaluate(expr.args[0])
@@ -500,7 +438,6 @@ class Interpreter:
                     raise InterpreterError('tiene expects a map as first argument')
                 return k in m
             if callee == 'pop':
-                # pop puede usarse como expresión también
                 if len(expr.args) != 1:
                     raise InterpreterError('pop expects 1 argument')
                 arr = self.evaluate(expr.args[0])
@@ -522,7 +459,6 @@ class Interpreter:
             r = self.evaluate(expr.right)
             op = expr.op
             if op == '+':
-                # allow concatenation between strings and other types
                 if isinstance(l, str) or isinstance(r, str):
                     return str(l) + str(r)
                 return l + r
@@ -570,7 +506,6 @@ def run_source(source: str,
     p = Parser(toks)
     prog = p.parse()
     
-    # Imprimir AST en consola si está habilitado
     if print_ast:
         print("\n" + "="*60)
         print("ÁRBOL SINTÁCTICO ABSTRACTO (AST)")
@@ -578,11 +513,9 @@ def run_source(source: str,
         print(prog)
         print("="*60 + "\n")
     
-    # Verificación de tipos estática (si está habilitada)
     if type_check:
         checker = TypeChecker()
         if not checker.check(prog):
-            # Retornar los errores formateados en lugar de imprimirlos
             error_messages = checker.get_formatted_errors()
             error_text = "\n".join(error_messages)
             raise InterpreterError(error_text)
