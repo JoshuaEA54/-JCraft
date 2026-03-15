@@ -42,7 +42,7 @@ class Lexer:
         ('RBRACE', r'\}'),
         ('LT', r'<'),
         ('GT', r'>'),
-    # identifier: start with a letter (unicode-aware) or underscore, then word chars
+   
     ('ID', r"[^\W\d]\w*"),
         ('MISMATCH', r'.'),
     ]
@@ -67,7 +67,7 @@ class Lexer:
                 continue
 
             if kind == 'SKIP' or kind == 'COMMENT' or kind == 'BLOCKCOMMENT':
-                # update line count for block comments
+              
                 if kind == 'BLOCKCOMMENT':
                     line_num += value.count('\n')
                     last_nl = value.rfind('\n')
@@ -97,13 +97,13 @@ class Lexer:
                 continue
             if kind == 'STRING':
                 inner = value[1:-1]
-                # Solo procesar escapes básicos (\n, \t, etc.) sin destruir UTF-8
+                
                 unescaped = inner.replace('\\n', '\n').replace('\\t', '\t').replace('\\\\', '\\').replace('\\"', '"')
                 tokens.append(Token('STRING', unescaped, line_num, col))
                 continue
             if kind == 'CHAR':
                 ch = value[1:-1]
-                # Igual para char
+                
                 unescaped = ch.replace('\\n', '\n').replace('\\t', '\t').replace('\\\\', '\\').replace("\\'", "'")
                 tokens.append(Token('CHAR', unescaped, line_num, col))
                 continue
