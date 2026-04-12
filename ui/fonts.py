@@ -1,7 +1,7 @@
-from pathlib import Path
 from PySide6.QtGui import QFontDatabase
+from utils import resource_path
 
-ASSETS = Path("assets")
+ASSETS = resource_path("assets")
 
 PIXEL_FONT_FILES = [
     ASSETS / "Minecraft.ttf",

@@ -1,4 +1,3 @@
-from pathlib import Path
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
@@ -11,14 +10,16 @@ from .output_panel import OutputPanel
 from .fonts import load_pixel_font_family
 from .snippets import get_snippet_menu_structure
 from .chest_dialog import show_chest_dialog
+from utils import resource_path
 
 # language tooling
 from lang.lexer import tokenize
 from lang.parser import Parser
 from lang.interpreter import run_source
 from lang.format import format_jcraft_code
+from lang.error_translator import humanize, humanize_line
 
-ASSETS = Path("assets")
+ASSETS = resource_path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
 ICON_PATHS = [ASSETS / "jcraft_logo.ico", ASSETS / "jcraft_logo.png"]
 
@@ -154,26 +155,26 @@ fin
         try:
             toks = tokenize(src)
             # show tokens
-            self.output_panel.append("--- TOKENS ---")
+            self.output_panel.append_info("--- TOKENS ---")
             for t in toks:
-                self.output_panel.append(repr(t))
+                self.output_panel.append_info(repr(t))
 
             # parse
             p = Parser(toks)
             prog = p.parse()
-            
+
             # Imprimir AST en consola de VSCode
             print("\n" + "="*60)
             print("ÁRBOL SINTÁCTICO ABSTRACTO (AST)")
             print("="*60)
             print(prog)
             print("="*60 + "\n")
-            
-            self.output_panel.append("\n--- AST ---")
-            self.output_panel.append(repr(prog))
-            self.output_panel.append("\n[OK] Compilación terminada sin errores.")
+
+            self.output_panel.append_info("\n--- AST ---")
+            self.output_panel.append_info(repr(prog))
+            self.output_panel.append_ok("\n[OK] Compilación terminada sin errores.")
         except Exception as e:
-            self.output_panel.append(f"[ERROR] {type(e).__name__}: {e}")
+            self.output_panel.append_error(f"[ERROR] {humanize(e)}")
 
     def _on_run(self):
         """Execute the source via the interpreter and show results."""
@@ -187,7 +188,7 @@ fin
         self.output_panel.btn_stop.setVisible(True)
         
         self.output_panel.clear()
-        self.output_panel.append("--- EJECUCIÓN ---")
+        self.output_panel.append_info("--- EJECUCIÓN ---")
         src = self.editor_panel.text()
         
         def stop_callback() -> bool:
@@ -218,22 +219,21 @@ fin
                                debug=False, 
                                print_ast=True)
             if self.is_running:
-                self.output_panel.append("\n[OK] Ejecución terminada.")
+                self.output_panel.append_ok("\n[OK] Ejecución terminada.")
         except InterruptedError as e:
-            self.output_panel.append(f"\n[DETENIDO] {e}")
+            self.output_panel.append_warn(f"\n[DETENIDO] {e}")
         except Exception as e:
             # Mostrar el error completo con sus detalles
             error_message = str(e)
-            
+
             # Si es un error del type checker, viene formateado con saltos de línea
             if "\n" in error_message:
-                self.output_panel.append("[ERROR]")
+                self.output_panel.append_error("[ERROR]")
                 for line in error_message.split("\n"):
-                    if line.strip():  # Solo mostrar líneas no vacías
-                        self.output_panel.append(line)
+                    if line.strip():
+                        self.output_panel.append_error(humanize_line(line))
             else:
-                # Otros errores se muestran normalmente
-                self.output_panel.append(f"[ERROR] {type(e).__name__}: {error_message}")
+                self.output_panel.append_error(f"[ERROR] {humanize(e)}")
         finally:
             self.is_running = False
             # Mostrar botón EJECUTAR y ocultar botón DETENER
@@ -281,7 +281,7 @@ fin
         except Exception as e:
             self.statusBar().showMessage(f"Error al formatear: {e}", 5000)
             self.output_panel.clear()
-            self.output_panel.append(f"[ERROR] No se pudo formatear el código: {e}")
+            self.output_panel.append_error(f"[ERROR] No se pudo formatear el código: {e}")
 
     def _build_snippet_menu(self, parent_menu):
         """Construye el menú de snippets organizados por categorías"""
