@@ -17,6 +17,7 @@ from lang.lexer import tokenize
 from lang.parser import Parser
 from lang.interpreter import run_source
 from lang.format import format_jcraft_code
+from lang.error_translator import humanize, humanize_line
 
 ASSETS = resource_path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
@@ -173,7 +174,7 @@ fin
             self.output_panel.append_info(repr(prog))
             self.output_panel.append_ok("\n[OK] Compilación terminada sin errores.")
         except Exception as e:
-            self.output_panel.append_error(f"[ERROR] {type(e).__name__}: {e}")
+            self.output_panel.append_error(f"[ERROR] {humanize(e)}")
 
     def _on_run(self):
         """Execute the source via the interpreter and show results."""
@@ -229,11 +230,10 @@ fin
             if "\n" in error_message:
                 self.output_panel.append_error("[ERROR]")
                 for line in error_message.split("\n"):
-                    if line.strip():  # Solo mostrar líneas no vacías
-                        self.output_panel.append_error(line)
+                    if line.strip():
+                        self.output_panel.append_error(humanize_line(line))
             else:
-                # Otros errores se muestran normalmente
-                self.output_panel.append_error(f"[ERROR] {type(e).__name__}: {error_message}")
+                self.output_panel.append_error(f"[ERROR] {humanize(e)}")
         finally:
             self.is_running = False
             # Mostrar botón EJECUTAR y ocultar botón DETENER
