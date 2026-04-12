@@ -1,3 +1,4 @@
+import html as _html
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton
 from PySide6.QtGui import QFont
 
@@ -9,7 +10,7 @@ class OutputPanel(QFrame):
         self.setFrameStyle(QFrame.NoFrame)
 
         self._font_family = "Consolas"
-        self._font_size = 12
+        self._font_size = 16
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 14, 14, 14)
@@ -73,4 +74,13 @@ class OutputPanel(QFrame):
         self.output.setFont(QFont(self._font_family, self._font_size))
 
     def clear(self): self.output.clear()
-    def append(self, text: str): self.output.append(text)
+
+    def _append_html(self, text: str, color: str):
+        safe = _html.escape(str(text)).replace('\n', '<br>')
+        self.output.append(f'<span style="color:{color}">{safe}</span>')
+
+    def append(self, text: str):       self._append_html(text, "#E8EEF2")  # blanco
+    def append_ok(self, text: str):    self._append_html(text, "#81C784")  # verde
+    def append_error(self, text: str): self._append_html(text, "#FF6B6B")  # rojo
+    def append_warn(self, text: str):  self._append_html(text, "#FFD54F")  # amarillo
+    def append_info(self, text: str):  self._append_html(text, "#4FC3F7")  # azul
