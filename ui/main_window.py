@@ -1,4 +1,3 @@
-from pathlib import Path
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
@@ -11,6 +10,7 @@ from .output_panel import OutputPanel
 from .fonts import load_pixel_font_family
 from .snippets import get_snippet_menu_structure
 from .chest_dialog import show_chest_dialog
+from utils import resource_path
 
 # language tooling
 from lang.lexer import tokenize
@@ -18,7 +18,7 @@ from lang.parser import Parser
 from lang.interpreter import run_source
 from lang.format import format_jcraft_code
 
-ASSETS = Path("assets")
+ASSETS = resource_path("assets")
 BACKGROUND_PATH = ASSETS / "jcraft_bg.png"
 ICON_PATHS = [ASSETS / "jcraft_logo.ico", ASSETS / "jcraft_logo.png"]
 
