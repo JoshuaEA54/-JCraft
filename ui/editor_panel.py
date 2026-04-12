@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QPlainTextEdit, QWidget
 from PySide6.QtGui import QFont, QPainter, QColor
 from PySide6.QtCore import Qt, QRect, QSize
+from .syntax_highlighter import JCraftHighlighter
 
 class LineNumberArea(QWidget):
     """Widget to display line numbers"""
@@ -22,7 +23,8 @@ class JCraftTextEdit(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.line_number_area = LineNumberArea(self)
-        
+        self._highlighter = JCraftHighlighter(self.document())
+
         # Connect signals to update line numbers
         self.blockCountChanged.connect(self.update_line_number_area_width)
         self.updateRequest.connect(self.update_line_number_area)
@@ -53,6 +55,12 @@ class JCraftTextEdit(QPlainTextEdit):
         
         if rect.contains(self.viewport().rect()):
             self.update_line_number_area_width(0)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Tab:
+            self.insertPlainText("    ")  # 4 spaces
+        else:
+            super().keyPressEvent(event)
 
     def resizeEvent(self, event):
         """Adjust the size of the line number area when the editor is resized"""
@@ -99,7 +107,7 @@ class EditorPanel(QFrame):
         self._font_family_mono = "Consolas"
         self._font_family_pixel = None
         self._use_pixel = False
-        self._font_size = 12
+        self._font_size = 16
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
@@ -122,7 +130,7 @@ class EditorPanel(QFrame):
         self.apply_font()
 
     def reset_zoom(self):
-        self._font_size = 12
+        self._font_size = 16
         self.apply_font()
 
     def apply_font(self):
